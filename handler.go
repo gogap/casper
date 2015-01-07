@@ -77,7 +77,6 @@ func handle(p *App) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		p.logger.Infoln("Data arrived. Responding to HTTP response...")
 		objResp := Response{
 			Code:    load.Code,
 			Message: load.Message,
@@ -85,5 +84,6 @@ func handle(p *App) func(http.ResponseWriter, *http.Request) {
 
 		bResp, _ := json.Marshal(objResp)
 		w.Write(bResp)
+		p.logger.Infoln("Data arrived. Responding to HTTP response...", string(bResp))
 	}
 }
