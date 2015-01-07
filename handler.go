@@ -2,88 +2,86 @@ package casper
 
 import (
 	"encoding/json"
-	"fmt"
+	"io/ioutil"
 	"net/http"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
-	"github.com/gogap/base_component"
-	"github.com/nu7hatch/gouuid"
-
-	"github.com/gogap/casper/utils"
+	"github.com/cascades-fbp/cascades/runtime"
+	. "github.com/gogap/base_component"
 )
 
 const (
-	timeout = time.Duration(15) * time.Second
+	REQ_X_API   = "X-API"
+	REQ_TIMEOUT = time.Duration(15) * time.Second
 )
 
-type HandlerRequest struct {
-	ResponseChan chan base_component.ComponentMessage
-	Request      *base_component.ComponentMessage
-}
-
 type Response struct {
-	Code    int64       `json:"code"`
+	Code    uint64      `json:"code"`
 	Message string      `json:"message,omitempty"`
 	Result  interface{} `json:"result,omitempty"`
 }
 
-func handler(out chan HandlerRequest) http.HandlerFunc {
-	return func(rw http.ResponseWriter, req *http.Request) {
+func handle(p *App) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		p.logger.Debug("http Handler:", r.Method, r.RequestURI)
 
-		log.Debug("Handler:", req.Method, req.RequestURI)
-
-		id, _ := uuid.NewV4()
-		msg := utils.RequestToComponentMessage(req)
-		msg.Id = id.String()
-
-		hr := &HandlerRequest{
-			ResponseChan: make(chan base_component.ComponentMessage),
-			Request:      msg,
-		}
-
-		// Send request to OUT port
-		log.Debug("Sending request to out channel (for OUTPUT port)")
-		select {
-		case out <- *hr:
-		case <-time.Tick(timeout):
-			timeout_respond(rw)
+		apiName := r.Header.Get(REQ_X_API)
+		if apiName == "" {
+			http.NotFound(w, r)
 			return
 		}
+		port := p.GetApi(apiName)
+		if port == nil {
+			http.NotFound(w, r)
+			return
+		}
+
+		reqBody, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			p.logger.Errorln("request body err:", p.Name, err.Error())
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Read request body error"))
+			return
+		}
+		p.logger.Debug("req:", apiName, string(reqBody))
+
+		componentMsg, _ := NewComponentMessage()
+		componentMsg.Payload.Result = reqBody
+
+		ch := p.AddRequest(componentMsg.ID)
+		defer p.DelRequest(componentMsg.ID)
+		defer close(ch)
+
+		// Send Component message
+		msgBytes, err := componentMsg.Serialize()
+		if err != nil {
+			p.logger.Errorln("Service Internal Error")
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Service Internal Error"))
+			return
+		}
+		p.logger.Infoln("ToNextComponent:", port.OutPort[0].url, string(msgBytes))
+		port.OutPort[0].socket.SendMessage(runtime.NewPacket(msgBytes))
 
 		// Wait for response from IN port
-		log.Debug("Waiting for response from a channel port (from INPUT port)")
-
-		var resp base_component.ComponentMessage
+		p.logger.Debug("Waiting for response from a channel port (from INPUT port)")
+		var load *Payload
 		select {
-		case resp = <-hr.ResponseChan:
-		case <-time.Tick(timeout):
-			timeout_respond(rw)
+		case load = <-ch:
+			break
+		case <-time.Tick(REQ_TIMEOUT):
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Couldn't process request in a given time"))
 			return
 		}
 
-		log.Debug("Data arrived. Responding to HTTP response...")
-		for cmdName, _ := range resp.Payload.Commands {
-			//TODO command process
-			switch cmdName {
-			case "write_header":
-				{
-
-				}
-			}
-		}
+		p.logger.Infoln("Data arrived. Responding to HTTP response...")
 		objResp := Response{
-			Code:    resp.Payload.Code,
-			Message: resp.Payload.Message,
-			Result:  resp.Payload.Result}
+			Code:    load.Code,
+			Message: load.Message,
+			Result:  load.Result}
 
 		bResp, _ := json.Marshal(objResp)
-
-		fmt.Fprint(rw, bResp)
+		w.Write(bResp)
 	}
-}
-
-func timeout_respond(rw http.ResponseWriter) {
-	rw.WriteHeader(http.StatusInternalServerError)
-	fmt.Fprint(rw, "Couldn't process request in a given time")
 }

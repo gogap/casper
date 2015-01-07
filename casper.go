@@ -1,176 +1,199 @@
 package casper
 
 import (
-	"fmt"
+	"encoding/json"
+	"os"
+	"strings"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/cascades-fbp/cascades/runtime"
 	"github.com/go-martini/martini"
-	"github.com/gogap/base_component"
-	"github.com/gogap/pam"
-	zmq "github.com/pebbe/zmq4"
-
-	"github.com/gogap/casper/utils"
+	. "github.com/gogap/base_component"
+	. "github.com/gogap/base_component/utils"
 )
 
-type API struct {
-	Name      string
-	Endpoints MultiEndpoints
-}
+var apps map[string]*App
 
-func NewAPI(apiName string, endpoints ...MultiEndpoints) (api *API, err error) {
-	newapi := new(API)
-	//TODO set endpoint
-	api = newapi
-	return
+type API struct {
+	Name     string
+	outPort  []*EndPoint
+	dispense string
 }
 
 type App struct {
-	name string
-	host string
-	port int32
+	Name string
+	Addr string
 
-	inputEndpoint   string
-	optionsEndpoint string
-	apis            map[string]API
-
-	inChan  chan base_component.ComponentMessage
-	outChan chan HandlerRequest
-
-	context             *zmq.Context
-	optionsPort, inPort *zmq.Socket
+	apis     map[string]*API
+	inPort   []*EndPoint
+	requests map[string]chan *Payload
 
 	martini *martini.ClassicMartini
-	mux     *pam.PostAPIMux
-
-	isRunning bool
+	logger  *log.Logger
 }
 
-func NewApp(appName string, apis ...API) (app *App, err error) {
-	newApp := new(App)
-	newApp.martini = martini.Classic()
-	newApp.mux = pam.New(appName)
-	newApp.martini.Post("/"+appName, newApp.mux)
-	//TODO set apis
-	app = newApp
-	return
-}
+func BuildAppFromConfig(fileName string) {
+	var conf struct {
+		Apps []struct {
+			Name string   `json:"name"`
+			Addr string   `json:"addr"`
+			In   []string `json:"in"`
+			Apis []struct {
+				Name     string   `json:"name"`
+				Out      []string `json:"out"`
+				Dospense string   `json:"dispense"`
+			} `json:"apis"`
+		} `json:"apps"`
 
-func (p *App) Name() string {
-	return p.name
-}
-
-func (p *App) Martini() *martini.ClassicMartini {
-	return p.martini
-}
-
-func (p *App) RegisterAPI(apis ...API) (err error) {
-	if p.isRunning {
-		return
+		Loglevel string `json:"loglevel"`
 	}
 
-	for _, api := range apis {
-		p.mux.Post(api.Name, handler(p.outChan))
-	}
-	//TODO put to map
-	return
-}
+	apps = make(map[string]*App)
 
-func (p *App) openPorts() {
-	var err error = nil
-	p.context, err = zmq.NewContext()
+	r, err := os.Open(fileName)
 	if err != nil {
 		panic(err)
 	}
+	defer r.Close()
 
-	p.optionsPort, err = utils.CreateInputPort(p.optionsEndpoint)
-	if err != nil {
+	if err = json.NewDecoder(r).Decode(&conf); err != nil {
 		panic(err)
 	}
 
-	p.inPort, err = utils.CreateInputPort(p.inputEndpoint)
-	if err != nil {
-		panic(err)
+	for i := 0; i < len(conf.Apps); i++ {
+
 	}
 }
 
-func (p *App) closePorts() {
-	p.optionsPort.Close()
-	if p.inPort != nil {
-		p.inPort.Close()
+func NewApp(name, addr string, in []string) *App {
+	inlen := len(in)
+	sname, saddr := strings.TrimSpace(name), strings.TrimSpace(addr)
+
+	if sname == "" || saddr == "" {
+		return nil
 	}
+	if inlen < 1 {
+		return nil
+	}
+
+	newApp := &App{
+		Name:     sname,
+		Addr:     saddr,
+		apis:     make(map[string]*API),
+		inPort:   make([]*EndPoint, inlen),
+		requests: make(map[string]chan *Payload),
+		martini:  martini.Classic(),
+		logger:   log.New()}
+
+	newApp.martini.Post("/"+sname, handle(newApp))
+
+	// set incoming port
+	for i := 0; i < inlen; i++ {
+		newApp.inPort[i] = &EndPoint{Url: in[i], Socket: nil}
+	}
+
+	apps[sname] = newApp
+
+	return newApp
 }
 
-func (p *App) run_apis(endpoint string) {
-	var outPort *zmq.Socket
-	var err error = nil
-	if outPort, err = utils.CreateOutputPort(endpoint); err != nil {
-		log.Panic(err)
-		panic(err)
+func (p *App) newAPI(name, dispense string, out []string) *API {
+	outlen := len(out)
+	sname, sdispense := strings.TrimSpace(name), strings.TrimSpace(dispense)
+
+	if sname == "" || sdispense == "" {
+		return nil
 	}
-	defer outPort.Close()
+	if outlen < 1 {
+		return nil
+	}
 
-	// Map of uuid to requests
-	dataMap := make(map[string]chan base_component.ComponentMessage)
+	newapi := &API{Name: sname, outPort: make([]*EndPoint, outlen), dispense: sdispense}
 
-	// Start listening in/out channels
-	for {
-		select {
-		case data := <-p.outChan:
-			dataMap[data.Request.Id] = data.ResponseChan
-			if ip, e := utils.ComponentMessage2IP(data.Request); e != nil {
-				log.Error(e)
-				delete(dataMap, data.Request.Id)
-				continue
-			} else {
-				outPort.SendMessage(ip, 0)
-			}
-		case resp := <-p.inChan:
-			if respChan, ok := dataMap[resp.Id]; ok {
-				log.Debug("Resolved channel for response", resp.Id)
-				respChan <- resp
-				delete(dataMap, resp.Id)
-				continue
-			}
-			log.Warning("Didn't find request handler mapping for a given ID", resp.Id)
+	for i := 0; i < outlen; i++ {
+		newapi.outPort[i] = &EndPoint{Url: out[i], Socket: nil}
+	}
+
+	return newapi
+}
+
+func (p *API) run() error {
+	var err error
+	for i := 0; i < len(p.outPort); i++ {
+		p.outPort[i].Socket, err = CreateOutputPort(p.outPort[i].Url)
+		if err != nil {
+			return err
 		}
 	}
+
+	return nil
 }
 
 func (p *App) Run() {
-	addr := fmt.Sprintf("%s:%d", p.host, p.port)
-
-	for _, api := range p.apis {
-		if endpoint, e := api.Endpoints.GetOne(); e != nil {
-			log.Panic(e)
-			panic(e)
-		} else {
-			go p.run_apis(endpoint)
-		}
-	}
-
-	// Web server goroutine
-	go func() {
-		p.martini.RunOnAddr(addr)
-	}()
-
-	// Process incoming message forever
-	for {
-		ip, err := p.inPort.RecvMessageBytes(0)
+	recver := func(port *EndPoint) {
+		ip, err := port.Socket.RecvMessageBytes(0)
 		if err != nil {
-			log.Debug("Error receiving message:", err.Error())
+			p.logger.Errorln(p.Name, port.Url, "Error receiving message:", err.Error())
 			continue
 		}
 		if !runtime.IsValidIP(ip) {
-			log.Error("Received invalid IP")
+			p.logger.Errorln(p.Name, port.Url, "Received invalid IP")
 			continue
 		}
 
-		msg, err := utils.IP2ComponentMessage(ip)
+		msg := new(ComponentMessage)
+		err = msg.FromJson(ip[1])
 		if err != nil {
-			log.Debug("Error converting IP to response: %s", err.Error())
+			p.logger.Errorln(p.Name, port.Url, "Format msg error", string(ip[1]))
 			continue
 		}
-		p.inChan <- *msg
+
 	}
+
+	// run all api
+	for _, api := range p.apis {
+		err := api.run()
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	// Process incoming message forever
+	for i := 0; i < len(p.inPort); i++ {
+		var err error
+		p.inPort[i].Socket, err = CreateInputPort(p.inPort[i].Url)
+		if err != nil {
+			panic(err)
+		}
+
+		go recver(p.inPort[i])
+	}
+
+	// Web server goroutine
+	p.martini.RunOnAddr(p.Addr)
+}
+
+
+func (p *App) GetApi(name string) *API{
+	if api, ok := p.apis[name]; ok {
+		return api
+	}
+	
+	return nil
+}
+
+func (p *App) AddRequest(reqid string) (ch chan *Payload){
+	sreqid := strings.TrimSpace(reqid)
+	if sreqid == "" {
+		return nil
+	}
+	
+	ch := make(chan *Payload)
+	p.requests[sreqid] = ch
+
+	return ch
+}
+
+func (p *App) DelRequest(reqid string) (ch chan *Payload){
+	delete(p.requests, reqid)
 }
