@@ -41,7 +41,7 @@ func BuildAppFromConfig(fileName string) {
 			Apis []struct {
 				Name     string   `json:"name"`
 				Out      []string `json:"out"`
-				Dospense string   `json:"dispense"`
+				Dispense string   `json:"dispense"`
 			} `json:"apis"`
 		} `json:"apps"`
 
@@ -61,8 +61,21 @@ func BuildAppFromConfig(fileName string) {
 	}
 
 	for i := 0; i < len(conf.Apps); i++ {
-
+		app := NewApp(conf.Apps[i].Name, conf.Apps[i].Addr, conf.Apps[i].In)
+		for j := 0; j < len(conf.Apps[i].Apis); j++{
+			app.newAPI(conf.Apps[i].Apis[j].Name, conf.Apps[i].Apis[j].Dispense, conf.Apps[i].Apis[j].Out)
+		}
+		
+		app.logger.Level = log.DebugLevel
 	}
+}
+
+func GetApp(name string) *App {
+	if app, ok := apps[name]; ok {
+		return app
+	}
+
+	return nil
 }
 
 func NewApp(name, addr string, in []string) *App {
@@ -87,13 +100,15 @@ func NewApp(name, addr string, in []string) *App {
 
 	newApp.martini.Post("/"+sname, handle(newApp))
 
-	// set incoming port
+	// incoming port
 	for i := 0; i < inlen; i++ {
 		newApp.inPort[i] = &EndPoint{Url: in[i], Socket: nil}
 	}
 
 	apps[sname] = newApp
 
+	newApp.logger.Infoln(newApp)
+	
 	return newApp
 }
 
@@ -114,6 +129,8 @@ func (p *App) newAPI(name, dispense string, out []string) *API {
 		newapi.outPort[i] = &EndPoint{Url: out[i], Socket: nil}
 	}
 
+	p.apis[sname] = newapi
+	
 	return newapi
 }
 
@@ -131,23 +148,35 @@ func (p *API) run() error {
 
 func (p *App) Run() {
 	recver := func(port *EndPoint) {
-		ip, err := port.Socket.RecvMessageBytes(0)
-		if err != nil {
-			p.logger.Errorln(p.Name, port.Url, "Error receiving message:", err.Error())
-			continue
-		}
-		if !runtime.IsValidIP(ip) {
-			p.logger.Errorln(p.Name, port.Url, "Received invalid IP")
-			continue
-		}
+		for {
+			ip, err := port.Socket.RecvMessageBytes(0)
+			if err != nil {
+				p.logger.Errorln(p.Name, port.Url, "Error receiving message:", err.Error())
+				continue
+			}
+			if !runtime.IsValidIP(ip) {
+				p.logger.Errorln(p.Name, port.Url, "Received invalid IP")
+				continue
+			}
+			p.logger.Infoln("recv:", string(ip[1]))
+			
+			msg := new(ComponentMessage)
+			err = msg.FromJson(ip[1])
+			if err != nil {
+				p.logger.Errorln(p.Name, port.Url, "Format msg error", string(ip[1]))
+				continue
+			}
 
-		msg := new(ComponentMessage)
-		err = msg.FromJson(ip[1])
-		if err != nil {
-			p.logger.Errorln(p.Name, port.Url, "Format msg error", string(ip[1]))
-			continue
-		}
+			p.logger.Infoln("recvmsg:", msg)
 
+			ch := p.GetRequest(msg.ID)
+			if ch == nil {
+				p.logger.Errorln(p.Name, port.Url, "404", msg)
+				continue
+			}
+
+			ch <- msg.Payload
+		}
 	}
 
 	// run all api
@@ -173,27 +202,34 @@ func (p *App) Run() {
 	p.martini.RunOnAddr(p.Addr)
 }
 
-
-func (p *App) GetApi(name string) *API{
+func (p *App) GetApi(name string) *API {
 	if api, ok := p.apis[name]; ok {
 		return api
 	}
-	
+
 	return nil
 }
 
-func (p *App) AddRequest(reqid string) (ch chan *Payload){
+func (p *App) AddRequest(reqid string) (ch chan *Payload) {
 	sreqid := strings.TrimSpace(reqid)
 	if sreqid == "" {
 		return nil
 	}
-	
-	ch := make(chan *Payload)
+
+	ch = make(chan *Payload)
 	p.requests[sreqid] = ch
 
-	return ch
+	return
 }
 
-func (p *App) DelRequest(reqid string) (ch chan *Payload){
+func (p *App) GetRequest(reqid string) chan *Payload {
+	if ch, ok := p.requests[reqid]; ok {
+		return ch
+	}
+
+	return nil
+}
+
+func (p *App) DelRequest(reqid string) {
 	delete(p.requests, reqid)
 }

@@ -27,11 +27,13 @@ func handle(p *App) func(http.ResponseWriter, *http.Request) {
 
 		apiName := r.Header.Get(REQ_X_API)
 		if apiName == "" {
+			p.logger.Errorln("request api name nil")
 			http.NotFound(w, r)
 			return
 		}
 		port := p.GetApi(apiName)
 		if port == nil {
+			p.logger.Errorln("request api 404")
 			http.NotFound(w, r)
 			return
 		}
@@ -60,8 +62,8 @@ func handle(p *App) func(http.ResponseWriter, *http.Request) {
 			w.Write([]byte("Service Internal Error"))
 			return
 		}
-		p.logger.Infoln("ToNextComponent:", port.OutPort[0].url, string(msgBytes))
-		port.OutPort[0].socket.SendMessage(runtime.NewPacket(msgBytes))
+		p.logger.Infoln("ToNextComponent:", port.outPort[0].Url, string(msgBytes))
+		port.outPort[0].Socket.SendMessage(runtime.NewPacket(msgBytes))
 
 		// Wait for response from IN port
 		p.logger.Debug("Waiting for response from a channel port (from INPUT port)")
