@@ -47,9 +47,12 @@ func handle(p *App) func(http.ResponseWriter, *http.Request) {
 		}
 		p.logger.Debug("req:", apiName, string(reqBody))
 
+		// Componet message
 		componentMsg, _ := NewComponentMessage()
+		componentMsg.SetContext(REQ_X_API, apiName)
 		componentMsg.Payload.Result = reqBody
 
+		// new request
 		ch := p.AddRequest(componentMsg.ID)
 		defer p.DelRequest(componentMsg.ID)
 		defer close(ch)
