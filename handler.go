@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	REQ_X_API   = "X-API"
 	REQ_TIMEOUT = time.Duration(15) * time.Second
 )
 
