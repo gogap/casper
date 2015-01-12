@@ -48,7 +48,7 @@ func handle(p *App) func(http.ResponseWriter, *http.Request) {
 
 		// Componet message
 		componentMsg, _ := NewComponentMessage()
-		componentMsg.SetContext(REQ_X_API, apiName)
+		componentMsg.Payload.SetContext(REQ_X_API, apiName)
 		componentMsg.Payload.Result = reqBody
 
 		// new request
