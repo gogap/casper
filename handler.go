@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	log "github.com/golang/glog"
 	"github.com/cascades-fbp/cascades/runtime"
 	. "github.com/gogap/base_component"
 )
@@ -22,32 +23,33 @@ type Response struct {
 
 func handle(p *App) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		p.logger.Debug("http Handler:", r.Method, r.RequestURI)
+		log.Infoln("http Handler:", r.Method, r.RequestURI)
 
 		apiName := r.Header.Get(REQ_X_API)
 		if apiName == "" {
-			p.logger.Errorln("request api name nil")
+			log.Errorln("request api name nil")
 			http.NotFound(w, r)
 			return
 		}
 		port := p.GetApi(apiName)
 		if port == nil {
-			p.logger.Errorln("request api 404")
+			log.Errorln("request api 404")
 			http.NotFound(w, r)
 			return
 		}
 
 		reqBody, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			p.logger.Errorln("request body err:", p.Name, err.Error())
+			log.Errorln("request body err:", p.Name, err.Error())
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Read request body error"))
 			return
 		}
-		p.logger.Debug("req:", apiName, string(reqBody))
+		log.Infoln("req:", apiName, string(reqBody))
 
 		// Componet message
 		componentMsg, _ := NewComponentMessage()
+		componentMsg.SetEntrance(port.outPort[0].Url)
 		componentMsg.Payload.SetContext(REQ_X_API, apiName)
 		componentMsg.Payload.Result = reqBody
 
@@ -59,16 +61,16 @@ func handle(p *App) func(http.ResponseWriter, *http.Request) {
 		// Send Component message
 		msgBytes, err := componentMsg.Serialize()
 		if err != nil {
-			p.logger.Errorln("Service Internal Error")
+			log.Errorln("Service Internal Error")
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("Service Internal Error"))
 			return
 		}
-		p.logger.Infoln("ToNextComponent:", port.outPort[0].Url, string(msgBytes))
+		log.Infoln("ToNextComponent:", port.outPort[0].Url, string(msgBytes))
 		port.outPort[0].Socket.SendMessage(runtime.NewPacket(msgBytes))
 
 		// Wait for response from IN port
-		p.logger.Debug("Waiting for response from a channel port (from INPUT port)")
+		log.Infoln("Waiting for response from a channel port (from INPUT port)")
 		var load *Payload
 		select {
 		case load = <-ch:
@@ -86,6 +88,6 @@ func handle(p *App) func(http.ResponseWriter, *http.Request) {
 
 		bResp, _ := json.Marshal(objResp)
 		w.Write(bResp)
-		p.logger.Infoln("Data arrived. Responding to HTTP response...", string(bResp))
+		log.Infoln("Data arrived. Responding to HTTP response...", string(bResp))
 	}
 }

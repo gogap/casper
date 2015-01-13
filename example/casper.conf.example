@@ -5,7 +5,7 @@
         "addr": "127.0.0.1:8088",
 	"in": ["tcp://127.0.0.1:5000"],
         "apis": [{
-            "name": "gogap.casper.hello.get",
+            "name": "rijin.admin.trader.list.get",
             "out": ["tcp://127.0.0.1:5002"],
 	    "dispense": "@@"
         }]

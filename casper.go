@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/golang/glog"
 	"github.com/cascades-fbp/cascades/runtime"
 	"github.com/go-martini/martini"
 	. "github.com/gogap/base_component"
@@ -29,7 +29,6 @@ type App struct {
 	requests map[string]chan *Payload
 
 	martini *martini.ClassicMartini
-	logger  *log.Logger
 }
 
 func BuildAppFromConfig(fileName string) {
@@ -65,8 +64,6 @@ func BuildAppFromConfig(fileName string) {
 		for j := 0; j < len(conf.Apps[i].Apis); j++{
 			app.newAPI(conf.Apps[i].Apis[j].Name, conf.Apps[i].Apis[j].Dispense, conf.Apps[i].Apis[j].Out)
 		}
-		
-		app.logger.Level = log.DebugLevel
 	}
 }
 
@@ -95,8 +92,7 @@ func NewApp(name, addr string, in []string) *App {
 		apis:     make(map[string]*API),
 		inPort:   make([]*EndPoint, inlen),
 		requests: make(map[string]chan *Payload),
-		martini:  martini.Classic(),
-		logger:   log.New()}
+		martini:  martini.Classic()}
 
 	newApp.martini.Post("/"+sname, handle(newApp))
 
@@ -107,7 +103,7 @@ func NewApp(name, addr string, in []string) *App {
 
 	apps[sname] = newApp
 
-	newApp.logger.Infoln(newApp)
+	log.Infoln(newApp)
 	
 	return newApp
 }
@@ -151,27 +147,27 @@ func (p *App) Run() {
 		for {
 			ip, err := port.Socket.RecvMessageBytes(0)
 			if err != nil {
-				p.logger.Errorln(p.Name, port.Url, "Error receiving message:", err.Error())
+				log.Errorln(p.Name, port.Url, "Error receiving message:", err.Error())
 				continue
 			}
 			if !runtime.IsValidIP(ip) {
-				p.logger.Errorln(p.Name, port.Url, "Received invalid IP")
+				log.Errorln(p.Name, port.Url, "Received invalid IP")
 				continue
 			}
-			p.logger.Infoln("recv:", string(ip[1]))
+			log.Infoln("recv:", string(ip[1]))
 			
 			msg := new(ComponentMessage)
 			err = msg.FromJson(ip[1])
 			if err != nil {
-				p.logger.Errorln(p.Name, port.Url, "Format msg error", string(ip[1]))
+				log.Errorln(p.Name, port.Url, "Format msg error", string(ip[1]))
 				continue
 			}
 
-			p.logger.Infoln("recvmsg:", msg)
+			log.Infoln("recvmsg:", msg)
 
 			ch := p.GetRequest(msg.ID)
 			if ch == nil {
-				p.logger.Errorln(p.Name, port.Url, "404", msg)
+				log.Errorln(p.Name, port.Url, "404", msg)
 				continue
 			}
 
