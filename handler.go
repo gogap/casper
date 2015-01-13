@@ -49,7 +49,7 @@ func handle(p *App) func(http.ResponseWriter, *http.Request) {
 
 		// Componet message
 		componentMsg, _ := NewComponentMessage()
-		componentMsg.SetEntrance(port.outPort[0].Url)
+		componentMsg.SetEntrance(p.inPort[0].Url)
 		componentMsg.Payload.SetContext(REQ_X_API, apiName)
 		componentMsg.Payload.Result = reqBody
 
