@@ -112,7 +112,7 @@ func (p *App) newAPI(name, dispense string, out []string) *API {
 	outlen := len(out)
 	sname, sdispense := strings.TrimSpace(name), strings.TrimSpace(dispense)
 
-	if sname == "" || sdispense == "" {
+	if sname == "" {
 		return nil
 	}
 	if outlen < 1 {
