@@ -1,13 +1,29 @@
 {
-    "loglevel": "debug",	
     "apps": [{
-        "name": "example",
-        "addr": "127.0.0.1:8088",
-	"in": ["tcp://127.0.0.1:5000"],
-        "apis": [{
-            "name": "rijin.admin.trader.list.get",
-            "out": ["tcp://127.0.0.1:5002"],
-	    "dispense": "@@"
-        }]
-    }]
-}
+	"name": "example",
+	"description": "this is http service",
+	"type": "martini",
+ 	"addr": "127.0.0.1:8088",
+	"intype": "zmq",
+	"inaddr": "tcp://127.0.0.1:5000",	
+	"graphs": {
+    	      "user.info.get": ["com1","com2","com3"],
+              "user.info.save": ["com2","com3","com1"],
+	      "demo": ["com1"]
+	  }}],
+    "components":[{
+	"name":"com1",
+	"description":"this is com1",
+	"type": "zmq",	
+	"in":"tcp://127.0.0.1:5001"
+    },{
+	"name":"com2",
+	"description":"this is com2",
+	"type": "zmq",	
+	"in":"tcp://127.0.0.1:5002"
+    },{
+	"name":"com3",
+	"description":"this is com3",
+	"type": "zmq",	
+	"in":"tcp://127.0.0.1:5003"
+    }]}
