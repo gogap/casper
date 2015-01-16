@@ -31,7 +31,7 @@ type App struct {
 	graphs  map[string][]string
 
 	requests map[string]chan *Payload
-	face     faceI
+	face     entrance
 }
 
 func BuildAppFromConfig(fileName string) {
@@ -39,10 +39,10 @@ func BuildAppFromConfig(fileName string) {
 		Apps []struct {
 			Name        string              `json:"name"`
 			Description string              `json:"description"`
-			Type        string              `json:"type"`
+			Entrace     string              `json:"entrace"`
 			Addr        string              `json:"addr"`
-			Intype      string              `json:"intype"`
-			Inaddr      string              `json:"inaddr"`
+			Intype      string              `json:"in_type"`
+			Inaddr      string              `json:"in_addr"`
 			Graphs      map[string][]string `json:"graphs"`
 		} `json:"apps"`
 		Components []struct {
@@ -73,7 +73,7 @@ func BuildAppFromConfig(fileName string) {
 	for i := 0; i < len(conf.Apps); i++ {
 		_, err := NewApp(conf.Apps[i].Name,
 			conf.Apps[i].Description,
-			conf.Apps[i].Type,
+			conf.Apps[i].Entrace,
 			conf.Apps[i].Addr,
 			conf.Apps[i].Intype,
 			conf.Apps[i].Inaddr,
@@ -122,7 +122,7 @@ func NewApp(name, description, apptype, addr, intype, inaddr string, graphs map[
 		return
 	}
 	app.face.SetPara("addr", saddr)
-	
+
 	log.Infoln(app)
 	apps[app.Name] = app
 
@@ -139,7 +139,7 @@ func GetAppByName(name string) *App {
 
 func (p *App) Run() {
 	// 难证graph
-	
+
 	p.Component.Run()
 
 	if p.face != nil {
@@ -159,7 +159,7 @@ func (p *App) GetGraph(name string) []string {
 
 func (p *App) recvMsg(msg *ComponentMessage) error {
 	fmt.Println(p.requests)
-	
+
 	id := msg.ID
 	ch := p.getRequest(id)
 	if ch == nil {
@@ -168,7 +168,7 @@ func (p *App) recvMsg(msg *ComponentMessage) error {
 	}
 
 	ch <- msg.Payload
-	
+
 	return nil
 }
 
@@ -202,7 +202,7 @@ func (p *App) sendMsg(graphName string, msg []byte) (id string, ch chan *Payload
 		coMsg.graph = append(coMsg.graph, com.in.Url)
 	}
 	log.Infoln("msg's graph:", coMsg.graph)
-	
+
 	// new request
 	ch = p.addRequest(coMsg.ID)
 
@@ -240,16 +240,16 @@ func (p *App) delRequest(reqid string) {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 // 入口服务的接口
-type faceI interface {
+type entrance interface {
 	SetPara(key string, val interface{}) // 设置参数
 	Run(*App)                            // 开始服务
 }
 
-type faceType func() faceI
+type entranceType func() entrance
 
-var faces map[string]faceType = make(map[string]faceType)
+var faces map[string]entranceType = make(map[string]entranceType)
 
-func registerFace(name string, one faceType) {
+func registerFace(name string, one entranceType) {
 	if one == nil {
 		panic("register face nil")
 	}
@@ -259,7 +259,7 @@ func registerFace(name string, one faceType) {
 	faces[name] = one
 }
 
-func NewFace(typeName string) (faceI, error) {
+func NewFace(typeName string) (entrance, error) {
 	newFun, ok := faces[typeName]
 	if ok != true {
 		return nil, fmt.Errorf("no face types " + typeName)

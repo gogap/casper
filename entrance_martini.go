@@ -19,7 +19,7 @@ func init() {
 	registerFace("martini", NewMartiniFace)
 }
 
-func NewMartiniFace() faceI {
+func NewMartiniFace() entrance {
 	return &martiniFace{Addr: "", martini: martini.Classic()}
 }
 

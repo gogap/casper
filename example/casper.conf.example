@@ -2,10 +2,10 @@
     "apps": [{
 	"name": "example",
 	"description": "this is http service",
-	"type": "martini",
+	"entrace": "martini",
  	"addr": "127.0.0.1:8088",
-	"intype": "zmq",
-	"inaddr": "tcp://127.0.0.1:5000",	
+	"in_type": "zmq",
+	"in_addr": "tcp://127.0.0.1:5000",	
 	"graphs": {
     	      "user.info.get": ["com1","com2","com3"],
               "user.info.save": ["com2","com3","com1"],

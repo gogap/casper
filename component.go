@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gogap/errors"
 	log "github.com/golang/glog"
 )
 
@@ -38,15 +39,6 @@ type ComponentHandlers map[string]ComponentHandler
 
 func BuildComFromConfig(fileName string) {
 	var conf struct {
-		Apps []struct {
-			Name        string              `json:"name"`
-			Description string              `json:"description"`
-			Type        string              `json:"type"`
-			Addr        string              `json:"addr"`
-			Intype      string              `json:"intype"`
-			Inaddr      string              `json:"inaddr"`
-			Graphs      map[string][]string `json:"graphs"`
-		} `json:"apps"`
 		Components []struct {
 			Name        string `json:"name"`
 			Description string `json:"description"`
@@ -67,19 +59,6 @@ func BuildComFromConfig(fileName string) {
 
 	for i := 0; i < len(conf.Components); i++ {
 		_, err := NewComponent(conf.Components[i].Name, conf.Components[i].Description, conf.Components[i].Type, conf.Components[i].In)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	for i := 0; i < len(conf.Apps); i++ {
-		_, err := NewApp(conf.Apps[i].Name,
-			conf.Apps[i].Description,
-			conf.Apps[i].Type,
-			conf.Apps[i].Addr,
-			conf.Apps[i].Intype,
-			conf.Apps[i].Inaddr,
-			conf.Apps[i].Graphs)
 		if err != nil {
 			panic(err)
 		}
@@ -149,7 +128,7 @@ func (p *Component) GetOutPoint(url string) *EndPoint {
 }
 
 func (p *Component) Run() (err error) {
-	log.Infoln("Component.Run...")
+	log.Infoln("Component Run...", p.Name)
 
 	// 创建MQ
 	p.in.mq, err = NewMq(p.in.MQType)
@@ -192,7 +171,43 @@ func (p *Component) recvMonitor() {
 		// deal path
 		next := comsg.TopGraph()
 		if next == p.in.Url {
-			comsg.PopGraph() // pop self
+			next = comsg.PopGraph() // pop to next
+			if next == "" {
+				log.Warningln("next is nil. next to entrance:", comsg.entrance)
+				next = comsg.entrance
+			}
+
+			// call worker
+			var ret interface{}
+			if p.handler != nil {
+				ret, err = p.handler(comsg.Payload)
+				if err != nil {
+					if errors.IsErrCode(err) == false {
+						comsg.Payload.Code = 500
+					} else {
+						comsg.Payload.Code = err.(errors.ErrCode).Code()
+						comsg.Payload.Message = err.(errors.ErrCode).Error()
+					}
+					comsg.Payload.Result = nil
+
+					// send to entrance
+					total, err := p.sendToNext(comsg.entrance, comsg)
+					log.Errorln("worker error, send to entrance", p.Name, total, string(msg))
+					if err != nil {
+						log.Errorln("worker error, send to entrance ERR", p.Name, string(msg), err)
+					}
+
+					continue
+				} else {
+					comsg.Payload.Result = ret
+				}
+			}
+
+			// send to next
+			if _, err = p.sendToNext(next, comsg); err != nil {
+				log.Errorf(p.Name, string(msg), "send message next component error: ", err)
+			}
+
 		} else if next == "" {
 			if p.app != nil {
 				log.Infoln("recvMsg to app:", p.Name, string(msg))
@@ -217,42 +232,17 @@ func (p *Component) recvMonitor() {
 			log.Errorln("msg's path err, send to real next", p.Name, total, string(msg))
 			continue
 		}
-
-		// call worker
-		var ret interface{}
-		if p.handler != nil {
-			ret, err = p.handler(comsg.Payload)
-			comsg.Payload.Result = ret
-			if err != nil {
-				// send to entrance
-				total, err := p.sendToNext(comsg.entrance, comsg)
-				if err != nil {
-					log.Errorln("worker error, send to entrance ERR", p.Name, string(msg), err)
-				}
-				log.Errorln("worker error, send to entrance", p.Name, total, string(msg))
-
-				continue
-			}
-		}
-
-		// pop graph
-		next = comsg.PopGraph()
-		if next == "" {
-			log.Warningln("next is nil. send to entrance:", comsg.entrance)
-			next = comsg.entrance
-		}
-
-		// send to next
-		if _, err = p.sendToNext(next, comsg); err != nil {
-			log.Errorf(p.Name, string(msg), "send message next component error: ", err)
-		}
 	}
 }
 
 func (p *Component) sendToNext(url string, msg *ComponentMessage) (total int, err error) {
+	if url == "" {
+		return 0, fmt.Errorf("sendTo nil url")
+	}
+
 	if _, ok := p.outs[url]; ok == false {
 		p.outs[url] = &EndPoint{Url: url, MQType: p.in.MQType, mq: nil}
-		p.outs[url].mq, err = NewMq(p.in.MQType) // 创建MQ TODO
+		p.outs[url].mq, err = NewMq(p.in.MQType) 
 		if err != nil {
 			return
 		}
