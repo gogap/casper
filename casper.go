@@ -180,7 +180,7 @@ func (p *App) recvMsg(msg *ComponentMessage) error {
 	return nil
 }
 
-func (p *App) sendMsg(graphName string, msg []byte) (id string, ch chan *Payload, err error) {
+func (p *App) sendMsg(graphName string, comsg *ComponentMessage) (id string, ch chan *Payload, err error) {
 	// get graph
 	graph := p.GetGraph(graphName)
 	if graph == nil {
@@ -195,11 +195,8 @@ func (p *App) sendMsg(graphName string, msg []byte) (id string, ch chan *Payload
 		return "", nil, fmt.Errorf("No such component named: ", graph[0])
 	}
 
-	// Componet message
-	coMsg, _ := NewComponentMessage(p.in.Url)
-	coMsg.Payload.SetContext(REQ_X_API, graphName)
-	coMsg.Payload.Result = msg
-
+	comsg.entrance = p.in.Url
+	
 	// build graph
 	for i := 0; i < len(graph); i++ {
 		com := GetComponentByName(graph[i])
@@ -207,17 +204,17 @@ func (p *App) sendMsg(graphName string, msg []byte) (id string, ch chan *Payload
 			log.Errorln("No such component named: ", graph[i])
 			return "", nil, fmt.Errorf("No such component named: ", graph[i])
 		}
-		coMsg.graph = append(coMsg.graph, com.in.Url)
+		comsg.graph = append(comsg.graph, com.in.Url)
 	}
-	log.Infoln("msg's graph:", coMsg.graph)
+	log.Infoln("msg's graph:", comsg.graph)
 
 	// new request
-	ch = p.addRequest(coMsg.ID)
+	ch = p.addRequest(comsg.ID)
 
 	// Send Component message
-	p.Component.sendToNext(nextCom.in.Url, coMsg)
-
-	return coMsg.ID, ch, nil
+	p.sendToNext(nextCom.in.Url, comsg)
+	
+	return comsg.ID, ch, nil
 }
 
 func (p *App) addRequest(reqid string) (ch chan *Payload) {
@@ -242,35 +239,4 @@ func (p *App) getRequest(reqid string) chan *Payload {
 
 func (p *App) delRequest(reqid string) {
 	delete(p.requests, reqid)
-}
-
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-var entrances map[string]entranceType = make(map[string]entranceType)
-
-// 入口服务的接口
-type entrance interface {
-	StartService(*App, string) // 开始服务
-}
-
-type entranceType func() entrance
-
-func registerEntrance(name string, one entranceType) {
-	if one == nil {
-		panic("Register nil entrance")
-	}
-	if _, dup := entrances[name]; dup {
-		panic("Register entrance duplicate for " + name)
-	}
-	entrances[name] = one
-}
-
-func NewEntrance(typeName string) (entrance, error) {
-	if newFun, ok := entrances[typeName]; ok {
-		return newFun(), nil
-	}
-
-	
-	return nil, fmt.Errorf("No entrance types " + typeName)	
 }

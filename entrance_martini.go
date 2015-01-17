@@ -46,8 +46,14 @@ func martiniHandle(p *App) func(http.ResponseWriter, *http.Request) {
 		}
 		log.Infoln("httpRequest:", p.Name, string(reqBody))
 
+		// Componet message
+		coMsg, _ := NewComponentMessage("")
+		coMsg.Payload.SetContext(REQ_X_API, apiName)
+		coMsg.Payload.Result = reqBody
+		// cookie @@@
+		
 		// send msg to next
-		id, ch, err := p.sendMsg(apiName, reqBody)
+		id, ch, err := p.sendMsg(apiName, coMsg)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte(err.Error()))
