@@ -35,8 +35,8 @@ type App struct {
 }
 
 func BuildAppFromConfigs(filePaths []string) {
-	for i := 0; i < len(filePaths); i++ {
-		BuildAppFromConfig(filePaths[i])
+	for _, filePath := range filePaths {
+		BuildAppFromConfig(filePath)
 	}
 }
 
@@ -69,21 +69,21 @@ func BuildAppFromConfig(filePath string) {
 		panic(err)
 	}
 
-	for i := 0; i < len(conf.Components); i++ {
-		_, err := NewComponent(conf.Components[i].Name, conf.Components[i].Description, conf.Components[i].Type, conf.Components[i].In)
+	for _, compConf := range conf.Components {
+		_, err := NewComponent(compConf.Name, compConf.Description, compConf.Type, compConf.In)
 		if err != nil {
 			panic(err)
 		}
 	}
 
-	for i := 0; i < len(conf.Apps); i++ {
-		_, err := NewApp(conf.Apps[i].Name,
-			conf.Apps[i].Description,
-			conf.Apps[i].Entrace,
-			conf.Apps[i].Addr,
-			conf.Apps[i].Intype,
-			conf.Apps[i].Inaddr,
-			conf.Apps[i].Graphs)
+	for _, appConf := range conf.Apps {
+		_, err := NewApp(appConf.Name,
+			appConf.Description,
+			appConf.Entrace,
+			appConf.Addr,
+			appConf.Intype,
+			appConf.Inaddr,
+			appConf.Graphs)
 		if err != nil {
 			panic(err)
 		}
@@ -148,7 +148,7 @@ func (p *App) Run() {
 	for k, v := range p.graphs {
 		for i := 0; i < len(v); i++ {
 			if GetComponentByName(v[i]) == nil {
-				panic(fmt.Sprintf("There is a unknow component name's %s in graph %s", v[i], k))
+				panic(fmt.Sprintf("There is a unknown component name's %s in graph %s", v[i], k))
 			}
 		}
 	}
@@ -196,7 +196,7 @@ func (p *App) sendMsg(graphName string, comsg *ComponentMessage) (id string, ch 
 	}
 
 	comsg.entrance = p.in.Url
-	
+
 	// build graph
 	for i := 0; i < len(graph); i++ {
 		com := GetComponentByName(graph[i])
@@ -213,7 +213,7 @@ func (p *App) sendMsg(graphName string, comsg *ComponentMessage) (id string, ch 
 
 	// Send Component message
 	p.sendToNext(nextCom.in.Url, comsg)
-	
+
 	return comsg.ID, ch, nil
 }
 
