@@ -10,34 +10,26 @@ import (
 	log "github.com/golang/glog"
 )
 
-type martiniFace struct {
-	Addr    string
+type martiniEntrances struct {
 	martini *martini.ClassicMartini
 }
 
 func init() {
-	registerFace("martini", NewMartiniFace)
+	registerEntrance("martini", NewMartiniFace)
 }
 
 func NewMartiniFace() entrance {
-	return &martiniFace{Addr: "", martini: martini.Classic()}
+	return &martiniEntrances{}
 }
 
-func (p *martiniFace) Run(app *App) {
+func (p *martiniEntrances) StartService(app *App, addr string) {
+	p.martini = martini.Classic()
 	p.martini.Post("/"+app.Name, martiniHandle(app))
-	p.martini.RunOnAddr(p.Addr)
-}
-
-func (p *martiniFace) SetPara(key string, val interface{}) {
-	if key == "addr" {
-		p.Addr = val.(string)
-	}
+	p.martini.RunOnAddr(addr)
 }
 
 func martiniHandle(p *App) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Infoln("http Handler:", r.Method, r.RequestURI)
-
 		apiName := r.Header.Get(REQ_X_API)
 		if apiName == "" {
 			log.Errorln("request api name nil")

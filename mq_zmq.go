@@ -3,7 +3,6 @@ package casper
 import (
 	"fmt"
 
-	log "github.com/golang/glog"
 	zmq "github.com/pebbe/zmq4"
 )
 
@@ -18,14 +17,8 @@ func init() {
 	registerMq("zmq", NewMqZmq)
 }
 
-func NewMqZmq() mqI {
-	return &mqZmq{url: "", socket: nil}
-}
-
-func (p *mqZmq) SetPara(key string, val interface{}) {
-	if key == "url" {
-		p.url = val.(string)
-	}
+func NewMqZmq(url string) mq {
+	return &mqZmq{url: url, socket: nil}
 }
 
 func (p *mqZmq) Ready() (err error) {
@@ -50,8 +43,6 @@ func (p *mqZmq) RecvMessage() ([]byte, error) {
 }
 
 func (p *mqZmq) SendToNext(msg []byte) (total int, err error) {
-	log.Infoln(p.url, string(msg))
-
 	if p.socket == nil {
 		p.socket, err = createZmqOutputPort(p.url)
 		if err != nil {

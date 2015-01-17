@@ -1,7 +1,6 @@
 /*
-组件
+ 组件
 */
-
 package casper
 
 import (
@@ -20,7 +19,7 @@ var components map[string]*Component = make(map[string]*Component)
 type EndPoint struct {
 	Url    string
 	MQType string
-	mq     mqI
+	mq
 }
 
 // 组件
@@ -28,7 +27,7 @@ type Component struct {
 	Name        string
 	Description string
 	in          EndPoint
-	app         *App
+	app         *App // 当这是一个入口组件...
 
 	outs    map[string]*EndPoint
 	handler ComponentHandler
@@ -131,11 +130,10 @@ func (p *Component) Run() (err error) {
 	log.Infoln("Component Run...", p.Name)
 
 	// 创建MQ
-	p.in.mq, err = NewMq(p.in.MQType)
+	p.in.mq, err = NewMq(p.in.MQType, p.in.Url)
 	if err != nil {
 		return
 	}
-	p.in.mq.SetPara("url", p.in.Url)
 
 	// MQ 准备
 	err = p.in.mq.Ready()
@@ -156,81 +154,83 @@ func (p *Component) recvMonitor() {
 			log.Errorln(p.Name, "Error receiving message:", err.Error())
 			continue
 		}
-		log.Infoln("recvmsg:", p.Name, string(msg))
-		fmt.Println(string(msg))
+		log.Infoln(p.Name, "Recv:", string(msg))
 
 		comsg := new(ComponentMessage)
 		if err := comsg.FromJson(msg); err != nil {
-			log.Errorln("Msg'sformat error:", p.Name, err.Error(), string(msg))
+			log.Errorln(p.Name, "Msg's format error:", err.Error(), string(msg))
 			continue
 		}
 
-		// update chain
-		comsg.chain = append(comsg.chain, p.in.Url)
+		go p.SendMsg(comsg)
+	}
+}
 
-		// deal path
-		next := comsg.TopGraph()
-		if next == p.in.Url {
-			next = comsg.PopGraph() // pop to next
-			if next == "" {
-				log.Warningln("next is nil. next to entrance:", comsg.entrance)
-				next = comsg.entrance
-			}
+func (p *Component) SendMsg(comsg *ComponentMessage) {
+	// 就是打日志用的
+	msg, _ := comsg.Serialize()
+	smsg := string(msg)
 
-			// call worker
-			var ret interface{}
-			if p.handler != nil {
-				ret, err = p.handler(comsg.Payload)
-				if err != nil {
-					if errors.IsErrCode(err) == false {
-						comsg.Payload.Code = 500
-					} else {
-						comsg.Payload.Code = err.(errors.ErrCode).Code()
-						comsg.Payload.Message = err.(errors.ErrCode).Error()
-					}
-					comsg.Payload.Result = nil
+	// 更新调用链
+	comsg.chain = append(comsg.chain, p.in.Url)
 
-					// send to entrance
-					total, err := p.sendToNext(comsg.entrance, comsg)
-					log.Errorln("worker error, send to entrance", p.Name, total, string(msg))
-					if err != nil {
-						log.Errorln("worker error, send to entrance ERR", p.Name, string(msg), err)
-					}
+	// deal path
+	next := comsg.TopGraph()
+	if next == p.in.Url {
+		// 正常流程
+		next = comsg.PopGraph()
+		if next == "" {
+			log.Warningln("next is nil. send to entrance:", smsg)
+			next = comsg.entrance
+		}
 
-					continue
-				} else {
-					comsg.Payload.Result = ret
-				}
-			}
-
-			// send to next
-			if _, err = p.sendToNext(next, comsg); err != nil {
-				log.Errorf(p.Name, string(msg), "send message next component error: ", err)
-			}
-
-		} else if next == "" {
-			if p.app != nil {
-				log.Infoln("recvMsg to app:", p.Name, string(msg))
-				if err := p.app.recvMsg(comsg); err != nil {
-					log.Errorln("recvmsg to caper err:", p.Name, err.Error())
-				}
-			} else {
-				// send to entrance
-				total, err := p.sendToNext(comsg.entrance, comsg)
-				if err != nil {
-					log.Errorln("msg's path null, send to entrance ERR", p.Name, string(msg))
-				}
-				log.Errorln("msg's path null, send to entrance", p.Name, total, string(msg))
-			}
-			continue
-		} else if next != p.in.Url {
-			// send to real next
-			total, err := p.sendToNext(next, comsg)
+		// call worker
+		var ret interface{}
+		var err error
+		if p.handler != nil {
+			ret, err = p.handler(comsg.Payload)
 			if err != nil {
-				log.Errorln("msg's path null, send to real next ERR", p.Name, string(msg))
+				// 业务处理错误, 发给入口
+				log.Errorln("worker error, send to entrance:", smsg)
+				if errors.IsErrCode(err) == false {
+					comsg.Payload.Code = 500
+				} else {
+					comsg.Payload.Code = err.(errors.ErrCode).Code()
+				}
+				comsg.Payload.Message = err.(errors.ErrCode).Error()
+				next = comsg.entrance
+				comsg.Payload.Result = nil
+			} else {
+				comsg.Payload.Result = ret
 			}
-			log.Errorln("msg's path err, send to real next", p.Name, total, string(msg))
-			continue
+		}
+
+		// 正常发到下一站
+		log.Infoln("sendToNext:", smsg)
+		if _, err = p.sendToNext(next, comsg); err != nil {
+			log.Errorf(p.Name, "sendToNext error: ", smsg)
+		}
+	} else if next == "" {
+		// 消息流出错了或是已经走到了入口
+		if p.app != nil {
+			log.Infoln(p.Name, "Msg to entrance:", smsg)
+			if err := p.app.recvMsg(comsg); err != nil {
+				log.Errorln(p.Name, "msg to entrance err:", err.Error())
+			}
+		} else {
+			// send to entrance
+			log.Errorln("msg's next null, send to entrance", smsg)
+			_, err := p.sendToNext(comsg.entrance, comsg)
+			if err != nil {
+				log.Errorln(p.Name, "msg's next null, send to entrance ERR", smsg)
+			}
+		}
+	} else if next != p.in.Url {
+		// 发给正确的站点
+		log.Warningln(p.Name, "msg's real next is:", next)
+		_, err := p.sendToNext(next, comsg)
+		if err != nil {
+			log.Errorln(p.Name, "send to real next ERR: ", string(msg))
 		}
 	}
 }
@@ -242,11 +242,10 @@ func (p *Component) sendToNext(url string, msg *ComponentMessage) (total int, er
 
 	if _, ok := p.outs[url]; ok == false {
 		p.outs[url] = &EndPoint{Url: url, MQType: p.in.MQType, mq: nil}
-		p.outs[url].mq, err = NewMq(p.in.MQType) 
+		p.outs[url].mq, err = NewMq(p.in.MQType, url)
 		if err != nil {
 			return
 		}
-		p.outs[url].mq.SetPara("url", url)
 	}
 
 	var msgb []byte
@@ -255,7 +254,7 @@ func (p *Component) sendToNext(url string, msg *ComponentMessage) (total int, er
 		return
 	}
 
-	log.Infoln("sendToNext:", url, string(msgb))
+	log.Infoln(p.Name, "sendToNext:", url, string(msgb))
 	total, err = p.outs[url].mq.SendToNext(msgb)
 
 	return

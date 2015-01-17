@@ -4,31 +4,30 @@ import (
 	"fmt"
 )
 
+var mqs map[string]mqType = make(map[string]mqType)
+
 // 消息接口
-type mqI interface {
-	SetPara(key string, val interface{}) // 设置参数
-	Ready() error                        // 初始化
-	RecvMessage() ([]byte, error)        // 读一条消息
-	SendToNext([]byte) (int, error)      // 发送一条消息到下一节点
+type mq interface {
+	Ready() error                   // 初始化
+	RecvMessage() ([]byte, error)   // 读一条消息
+	SendToNext([]byte) (int, error) // 发送一条消息到下一节点
 }
 
-type mqType func() mqI
-
-var mqs map[string]mqType = make(map[string]mqType)
+type mqType func(string) mq
 
 func registerMq(name string, one mqType) {
 	if one == nil {
-		panic("register MQ nil")
+		panic("Register MQ nil")
 	}
 	if _, dup := mqs[name]; dup {
-		panic("register mq duplicate for " + name)
+		panic("Register MQ duplicate for " + name)
 	}
 	mqs[name] = one
 }
 
-func NewMq(typeName string) (mqI, error) {
+func NewMq(typeName string, url string) (mq, error) {
 	if newFun, ok := mqs[typeName]; ok {
-		return newFun(), nil
+		return newFun(url), nil
 	}
 
 	return nil, fmt.Errorf("no mq types " + typeName)

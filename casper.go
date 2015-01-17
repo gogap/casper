@@ -26,15 +26,21 @@ type HttpResponse struct {
 // 服务
 type App struct {
 	Component
+	entrance
 
-	apptype string
-	graphs  map[string][]string
-
+	addr     string
+	apptype  string
+	graphs   map[string][]string
 	requests map[string]chan *Payload
-	face     entrance
 }
 
-func BuildAppFromConfig(fileName string) {
+func BuildAppFromConfigs(filePaths []string) {
+	for i := 0; i < len(filePaths); i++ {
+		BuildAppFromConfig(filePaths[i])
+	}
+}
+
+func BuildAppFromConfig(filePath string) {
 	var conf struct {
 		Apps []struct {
 			Name        string              `json:"name"`
@@ -53,7 +59,7 @@ func BuildAppFromConfig(fileName string) {
 		} `json:"components"`
 	}
 
-	r, err := os.Open(fileName)
+	r, err := os.Open(filePath)
 	if err != nil {
 		panic(err)
 	}
@@ -111,17 +117,17 @@ func NewApp(name, description, apptype, addr, intype, inaddr string, graphs map[
 			app:         nil,
 			outs:        make(map[string]*EndPoint),
 			handler:     nil},
+		entrance: nil,
+		addr:     saddr,
 		apptype:  stype,
 		graphs:   graphs,
-		requests: make(map[string]chan *Payload),
-		face:     nil}
+		requests: make(map[string]chan *Payload)}
 
 	app.app = app
-	app.face, err = NewFace(app.apptype)
+	app.entrance, err = NewEntrance(app.apptype)
 	if err != nil {
 		return
 	}
-	app.face.SetPara("addr", saddr)
 
 	log.Infoln(app)
 	apps[app.Name] = app
@@ -138,13 +144,17 @@ func GetAppByName(name string) *App {
 }
 
 func (p *App) Run() {
-	// 难证graph
-
-	p.Component.Run()
-
-	if p.face != nil {
-		p.face.Run(p) // Run user face service
+	// 验证graph
+	for k, v := range p.graphs {
+		for i := 0; i < len(v); i++ {
+			if GetComponentByName(v[i]) == nil {
+				panic(fmt.Sprintf("There is a unknow component name's %s in graph %s", v[i], k))
+			}
+		}
 	}
+
+	p.Run()
+	p.StartService(p, p.addr)
 }
 
 func (p *App) GetGraph(name string) []string {
@@ -158,8 +168,6 @@ func (p *App) GetGraph(name string) []string {
 }
 
 func (p *App) recvMsg(msg *ComponentMessage) error {
-	fmt.Println(p.requests)
-
 	id := msg.ID
 	ch := p.getRequest(id)
 	if ch == nil {
@@ -239,31 +247,30 @@ func (p *App) delRequest(reqid string) {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+var entrances map[string]entranceType = make(map[string]entranceType)
+
 // 入口服务的接口
 type entrance interface {
-	SetPara(key string, val interface{}) // 设置参数
-	Run(*App)                            // 开始服务
+	StartService(*App, string) // 开始服务
 }
 
 type entranceType func() entrance
 
-var faces map[string]entranceType = make(map[string]entranceType)
-
-func registerFace(name string, one entranceType) {
+func registerEntrance(name string, one entranceType) {
 	if one == nil {
-		panic("register face nil")
+		panic("Register nil entrance")
 	}
-	if _, dup := faces[name]; dup {
-		panic("register face duplicate for " + name)
+	if _, dup := entrances[name]; dup {
+		panic("Register entrance duplicate for " + name)
 	}
-	faces[name] = one
+	entrances[name] = one
 }
 
-func NewFace(typeName string) (entrance, error) {
-	newFun, ok := faces[typeName]
-	if ok != true {
-		return nil, fmt.Errorf("no face types " + typeName)
+func NewEntrance(typeName string) (entrance, error) {
+	if newFun, ok := entrances[typeName]; ok {
+		return newFun(), nil
 	}
 
-	return newFun(), nil
+	
+	return nil, fmt.Errorf("No entrance types " + typeName)	
 }
