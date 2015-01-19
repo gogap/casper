@@ -115,7 +115,6 @@ func martiniHandle(p *App) func(http.ResponseWriter, *http.Request) {
 
 		bResp, _ := json.Marshal(objResp)
 		w.Write(bResp)
-
 		log.Infoln("Data arrived. Responding to HTTP response...", string(bResp))
 	}
 }

@@ -206,7 +206,8 @@ func (p *App) sendMsg(graphName string, comsg *ComponentMessage) (id string, ch 
 	ch = p.addRequest(comsg.ID)
 
 	// Send Component message
-	p.sendToNext(nextCom.in.Url, comsg)
+	msg, _ := comsg.Serialize()
+	p.Component.sendToNext(nextCom.in.Url, msg)
 
 	return comsg.ID, ch, nil
 }

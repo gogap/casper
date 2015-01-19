@@ -29,8 +29,8 @@ type ComponentMessage struct {
 type Payload struct {
 	Code    uint64            `json:"code"`
 	Message string            `json:"message"`
-	context componentContext  `json:"context,omitempty"`
-	command componentCommands `json:"command,omitempty"`
+	context componentContext  `json:"context"`
+	command componentCommands `json:"command"`
 	Result  interface{}       `json:"result"`
 }
 
@@ -84,7 +84,7 @@ func (p *ComponentMessage) PopGraph() string {
 }
 
 func (p *ComponentMessage) Serialize() ([]byte, error) {
-	var tmp struct {
+	type Msg struct {
 		ID       string   `json:"id"`
 		Entrance string   `json:"entrance"`
 		Graph    []string `json:"graph"`
@@ -92,12 +92,13 @@ func (p *ComponentMessage) Serialize() ([]byte, error) {
 		Payload  struct {
 			Code    uint64            `json:"code"`
 			Message string            `json:"message"`
-			Context componentContext  `json:"context,omitempty"`
-			Command componentCommands `json:"command,omitempty"`
+			Context componentContext  `json:"context"`
+			Command componentCommands `json:"command"`
 			Result  interface{}       `json:"result"`
 		} `json:"payload"`
 	}
 
+	tmp := &Msg{}
 	tmp.ID = p.ID
 	tmp.Entrance = p.entrance
 	tmp.Graph = p.graph

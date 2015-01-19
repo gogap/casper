@@ -188,6 +188,7 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 		var ret interface{}
 		var err error
 		if p.handler != nil {
+			log.Infoln(p.Name, "Call handler")
 			ret, err = p.handler(comsg.Payload)
 			if err != nil {
 				// 业务处理错误, 发给入口
@@ -202,17 +203,20 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 				next = comsg.entrance
 				comsg.Payload.Result = nil
 			} else {
+				log.Infoln(p.Name, "Call handler ok")
 				comsg.Payload.Result = ret
 			}
 		}
 
 		// 正常发到下一站
 		log.Infoln("sendToNext:", smsg)
-		if _, err = p.sendToNext(next, comsg); err != nil {
+		msg, _ := comsg.Serialize()
+		if _, err = p.sendToNext(next, msg); err != nil {
 			log.Errorf(p.Name, "sendToNext error: ", smsg)
 		}
 	} else if next == "" {
 		// 消息流出错了或是已经走到了入口
+		msg, _ := comsg.Serialize()
 		if p.app != nil {
 			log.Infoln(p.Name, "Msg to entrance:", smsg)
 			if err := p.app.recvMsg(comsg); err != nil {
@@ -221,42 +225,37 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 		} else {
 			// send to entrance
 			log.Errorln("msg's next null, send to entrance", smsg)
-			_, err := p.sendToNext(comsg.entrance, comsg)
+			_, err := p.sendToNext(comsg.entrance, msg)
 			if err != nil {
 				log.Errorln(p.Name, "msg's next null, send to entrance ERR", smsg)
 			}
 		}
 	} else if next != p.in.Url {
 		// 发给正确的站点
+		msg, _ := comsg.Serialize()
 		log.Warningln(p.Name, "msg's real next is:", next)
-		_, err := p.sendToNext(next, comsg)
+		_, err := p.sendToNext(next, msg)
 		if err != nil {
 			log.Errorln(p.Name, "send to real next ERR: ", string(msg))
 		}
 	}
 }
 
-func (p *Component) sendToNext(url string, msg *ComponentMessage) (total int, err error) {
+func (p *Component) sendToNext(url string, msg []byte) (total int, err error) {
 	if url == "" {
 		return 0, fmt.Errorf("sendTo nil url")
 	}
 
 	if _, ok := p.outs[url]; ok == false {
-		p.outs[url] = &EndPoint{Url: url, MQType: p.in.MQType, mq: nil}
-		p.outs[url].mq, err = NewMq(p.in.MQType, url)
+		mqtmp, err := NewMq(p.in.MQType, url)
 		if err != nil {
-			return
+			return 0, err
 		}
+		p.outs[url] = &EndPoint{Url: url, MQType: p.in.MQType, mq: mqtmp}
 	}
 
-	var msgb []byte
-	msgb, err = msg.Serialize()
-	if err != nil {
-		return
-	}
-
-	log.Infoln(p.Name, "sendToNext:", url, string(msgb))
-	total, err = p.outs[url].mq.SendToNext(msgb)
+	log.Infoln(p.Name, "sendToNext:", url, string(msg))
+	total, err = p.outs[url].mq.SendToNext(msg)
 
 	return
 }
