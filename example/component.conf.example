@@ -1,17 +1,18 @@
 {
-    "components":[{
-	"name":"com1",
-	"description":"this is com1",
-	"type": "zmq",	
-	"in":"tcp://127.0.0.1:5001"
-    },{
-	"name":"com2",
-	"description":"this is com2",
-	"type": "zmq",	
-	"in":"tcp://127.0.0.1:5002"
-    },{
-	"name":"com3",
-	"description":"this is com3",
-	"type": "zmq",	
-	"in":"tcp://127.0.0.1:5003"
-    }]}
+    "components": [{
+        "name": "com1",
+        "description": "this is com1",
+        "type": "zmq",
+        "in": "tcp://127.0.0.1:5001"
+    }, {
+        "name": "com2",
+        "description": "this is com2",
+        "type": "zmq",
+        "in": "tcp://127.0.0.1:5002"
+    }, {
+        "name": "com3",
+        "description": "this is com3",
+        "type": "zmq",
+        "in": "tcp://127.0.0.1:5003"
+    }]
+}
