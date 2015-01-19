@@ -51,36 +51,25 @@ func martiniHandle(p *App) func(http.ResponseWriter, *http.Request) {
 		sessionids := ""
 		userids := ""
 		sessionid, err := r.Cookie(SESSION_HEADER_KEY)
-		if err != nil {
-			log.Errorln("get", SESSION_HEADER_KEY, "err:", err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
-			return
-		}
-		userid, err := r.Cookie(USER_HEADER_KEY)
-		if err != nil {
-			log.Errorln("get", USER_HEADER_KEY, "err:", err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
-			return
-		}
-		if sessionid == nil {
+		if err != nil || sessionid == nil {
 			uuidTmp, _ := uuid.NewV4()
 			sessionids = uuidTmp.String()
 		} else {
 			sessionids = sessionid.Value
 		}
+
+		userid, err := r.Cookie(USER_HEADER_KEY)
 		if userid != nil {
 			userids = userid.Value
 		}
-		
+
 		// Componet message
 		coMsg, _ := NewComponentMessage("")
 		coMsg.Payload.SetContext(REQ_X_API, apiName)
 		coMsg.Payload.SetContext(SESSION_HEADER_KEY, sessionids)
 		coMsg.Payload.SetContext(USER_HEADER_KEY, userids)
 		coMsg.Payload.Result = reqBody
-		
+
 		// send msg to next
 		id, ch, err := p.sendMsg(apiName, coMsg)
 		if err != nil {
@@ -118,7 +107,7 @@ func martiniHandle(p *App) func(http.ResponseWriter, *http.Request) {
 				r.AddCookie(&http.Cookie{Name: k, Value: v, Path: "/"})
 			}
 		}
-		
+
 		objResp := HttpResponse{
 			Code:    load.Code,
 			Message: load.Message,
