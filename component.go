@@ -194,10 +194,11 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 				log.Errorln("worker error, send to entrance:", smsg)
 				if errors.IsErrCode(err) == false {
 					comsg.Payload.Code = 500
+					comsg.Payload.Message = err.Error()
 				} else {
 					comsg.Payload.Code = err.(errors.ErrCode).Code()
+					comsg.Payload.Message = err.(errors.ErrCode).Error()
 				}
-				comsg.Payload.Message = err.(errors.ErrCode).Error()
 				next = comsg.entrance
 				comsg.Payload.Result = nil
 			} else {

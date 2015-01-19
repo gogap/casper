@@ -87,7 +87,6 @@ func (p *ComponentMessage) Serialize() ([]byte, error) {
 	var tmp struct {
 		ID       string   `json:"id"`
 		Entrance string   `json:"entrance"`
-		App      string   `json:"app"`
 		Graph    []string `json:"graph"`
 		Chain    []string `json:"chain"`
 		Payload  struct {
@@ -118,7 +117,6 @@ func (p *ComponentMessage) FromJson(jsonStr []byte) (err error) {
 	var tmp struct {
 		ID       string   `json:"id"`
 		Entrance string   `json:"entrance"`
-		App      string   `json:"app"`
 		Graph    []string `json:"graph"`
 		Chain    []string `json:"chain"`
 		Payload  struct {
@@ -153,7 +151,7 @@ func (p *Payload) UnmarshalResult(v interface{}) error {
 		return nil
 	}
 
-	if str, ok := p.Result.(string); ok {
+	if str, ok := p.Result.(string); ok == true {
 		var byteData []byte
 		var err error
 		if byteData, err = base64.StdEncoding.DecodeString(str); err != nil {
@@ -330,6 +328,29 @@ func (p *Payload) SetCommand(key string, command interface{}) {
 		p.command = make(map[string]interface{})
 	}
 	p.command[key] = command
+}
+
+func (p *Payload) AppendCommand(key string, command interface{}) {
+	if p.command == nil {
+		p.command = make(map[string]interface{})
+	}
+
+	if tmp, ok := p.command[key]; ok {
+		if reflect.TypeOf(tmp) == reflect.TypeOf(command) {
+			switch reflect.TypeOf(command).Kind() {
+			case reflect.Map:
+				for k, v := range command.(map[string]interface{}) {
+					p.command[key].(map[string]interface{})[k] = v
+				}
+			case reflect.Slice:
+				for i := 0; i < len(command.([]interface{})); i++ {
+					p.command[key] = append(p.command[key].([]interface{}), command.([]interface{})[i])
+				}
+			}
+		}
+	} else {
+		p.command[key] = command
+	}
 }
 
 func (p *Payload) GetCommand(key string) (val interface{}, exist bool) {

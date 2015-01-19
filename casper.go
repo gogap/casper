@@ -185,7 +185,7 @@ func (p *App) sendMsg(graphName string, comsg *ComponentMessage) (id string, ch 
 	graph := p.GetGraph(graphName)
 	if graph == nil {
 		log.Errorln("No such graph named: ", graphName)
-		return "", nil, fmt.Errorf("No such graph named:", graphName)
+		return "", nil, fmt.Errorf("No such graph named: %s", graphName)
 	}
 
 	// get com
