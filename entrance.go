@@ -2,6 +2,17 @@ package casper
 
 import (
 	"fmt"
+	"time"
+)
+
+const (
+	REQ_TIMEOUT = time.Duration(15) * time.Second
+	REQ_X_API   = "X-API"
+
+	SESSION_HEADER_KEY = "sessionID"
+	USER_HEADER_KEY    = "userKey"
+
+	CMD_HTTP_HEADER_WRITE = "CMD_HTTP_HEADER_WRITE"
 )
 
 var entrances map[string]entranceType = make(map[string]entranceType)
@@ -28,6 +39,5 @@ func NewEntrance(typeName string) (entrance, error) {
 		return newFun(), nil
 	}
 
-	
-	return nil, fmt.Errorf("No entrance types " + typeName)	
+	return nil, fmt.Errorf("No entrance types " + typeName)
 }

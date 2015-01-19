@@ -5,14 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	log "github.com/golang/glog"
-)
-
-const (
-	REQ_TIMEOUT = time.Duration(15) * time.Second
-	REQ_X_API   = "X-API"
 )
 
 var apps map[string]*App = make(map[string]*App)
