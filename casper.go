@@ -153,8 +153,8 @@ func (p *App) Run() {
 		}
 	}
 
-	p.Run()
-	p.StartService(p, p.addr)
+	p.Component.Run()
+	p.entrance.StartService(p, p.addr)
 }
 
 func (p *App) GetGraph(name string) []string {
@@ -196,7 +196,7 @@ func (p *App) sendMsg(graphName string, comsg *ComponentMessage) (id string, ch 
 	}
 
 	comsg.entrance = p.in.Url
-	
+
 	// build graph
 	for i := 0; i < len(graph); i++ {
 		com := GetComponentByName(graph[i])
@@ -213,7 +213,7 @@ func (p *App) sendMsg(graphName string, comsg *ComponentMessage) (id string, ch 
 
 	// Send Component message
 	p.sendToNext(nextCom.in.Url, comsg)
-	
+
 	return comsg.ID, ch, nil
 }
 
