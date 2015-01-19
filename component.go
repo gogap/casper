@@ -33,7 +33,7 @@ type Component struct {
 	handler ComponentHandler
 }
 
-type ComponentHandler func(*Payload) (result interface{}, err error)
+type ComponentHandler func(*Payload) (err error)
 type ComponentHandlers map[string]ComponentHandler
 
 func BuildComFromConfig(fileName string) {
@@ -185,10 +185,9 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 		}
 
 		// call worker
-		var ret interface{}
 		var err error
 		if p.handler != nil {
-			ret, err = p.handler(comsg.Payload)
+			err = p.handler(comsg.Payload)
 			if err != nil {
 				// 业务处理错误, 发给入口
 				log.Errorln("worker error, send to entrance:", smsg)
@@ -200,8 +199,6 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 				comsg.Payload.Message = err.(errors.ErrCode).Error()
 				next = comsg.entrance
 				comsg.Payload.Result = nil
-			} else {
-				comsg.Payload.Result = ret
 			}
 		}
 
