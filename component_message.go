@@ -71,8 +71,6 @@ func (p *ComponentMessage) TopGraph() string {
 }
 
 func (p *ComponentMessage) PopGraph() string {
-	fmt.Println(p.graph)
-
 	if len(p.graph) >= 1 {
 		p.graph = p.graph[1:]
 	}

@@ -141,6 +141,9 @@ func (p *App) Run() {
 	// 验证graph
 	for k, v := range p.graphs {
 		for i := 0; i < len(v); i++ {
+			if v[i] == "0" {
+				continue
+			}
 			if GetComponentByName(v[i]) == nil {
 				panic(fmt.Sprintf("There is a unknown component name's %s in graph %s", v[i], k))
 			}
@@ -178,21 +181,19 @@ func (p *App) sendMsg(graphName string, comsg *ComponentMessage) (id string, ch 
 	// get graph
 	graph := p.GetGraph(graphName)
 	if graph == nil {
-		log.Errorln("No such graph named: ", graphName)
+		log.Errorln("No such graph named: ", graphName, p.graphs)
 		return "", nil, fmt.Errorf("No such graph named: %s", graphName)
-	}
-
-	// get com
-	nextCom := GetComponentByName(graph[0])
-	if nextCom == nil {
-		log.Errorln("No such component named: ", graph[0])
-		return "", nil, fmt.Errorf("No such component named: ", graph[0])
 	}
 
 	comsg.entrance = p.in.Url
 
 	// build graph
 	for i := 0; i < len(graph); i++ {
+		if i == 0 && graph[0] == "0" {
+			comsg.graph = append(comsg.graph, p.in.Url)
+			continue
+		}
+
 		com := GetComponentByName(graph[i])
 		if com == nil {
 			log.Errorln("No such component named: ", graph[i])
@@ -202,12 +203,15 @@ func (p *App) sendMsg(graphName string, comsg *ComponentMessage) (id string, ch 
 	}
 	log.Infoln("msg's graph:", comsg.graph)
 
+	// get com
+	nextCom := comsg.graph[0]
+
 	// new request
 	ch = p.addRequest(comsg.ID)
 
 	// Send Component message
 	msg, _ := comsg.Serialize()
-	p.Component.sendToNext(nextCom.in.Url, msg)
+	p.Component.sendToNext(nextCom, msg)
 
 	return comsg.ID, ch, nil
 }

@@ -11,21 +11,22 @@ import (
 	uuid "github.com/nu7hatch/gouuid"
 )
 
-type martiniEntrances struct {
+type martiniEntrance struct {
 	martini *martini.ClassicMartini
 }
 
 func init() {
-	registerEntrance("martini", NewMartiniFace)
+	registerEntrance("martini", NewMartiniEntrances)
 }
 
-func NewMartiniFace() entrance {
-	return &martiniEntrances{}
+func NewMartiniEntrances() entrance {
+	return &martiniEntrance{}
 }
 
-func (p *martiniEntrances) StartService(app *App, addr string) {
+func (p *martiniEntrance) StartService(app *App, addr string) {
 	p.martini = martini.Classic()
 	p.martini.Post("/"+app.Name, martiniHandle(app))
+	log.Infoln("martiniEntrance start at:", addr)
 	p.martini.RunOnAddr(addr)
 }
 

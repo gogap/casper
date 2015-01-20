@@ -11,6 +11,16 @@
             "user.info.save": ["com2", "com3", "com1"],
             "demo": ["com1"]
         }
+    },{
+        "name": "syncService",
+        "description": "这是一个用zmq通信的服务",
+        "entrace": "zmq",
+        "addr": "tcp://127.0.0.1:5555",
+        "in_type": "zmq",
+        "in_addr": "tcp://127.0.0.1:5000",
+        "graphs": {
+            "demo": ["0"]
+        }
     }],
     "components": [{
         "name": "com1",

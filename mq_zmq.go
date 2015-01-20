@@ -35,10 +35,10 @@ func (p *mqZmq) RecvMessage() ([]byte, error) {
 		return nil, err
 	}
 
-	if !(len(ip) == 2 && len(ip[0]) == 1 && ip[0][0] == componentPacket) {
-		return ip[0], fmt.Errorf("recv not valid message")
+	if !isValidPacket(ip) {
+		return nil, fmt.Errorf("Recv invalid message")
 	}
-
+	
 	return ip[1], nil
 }
 
@@ -50,7 +50,7 @@ func (p *mqZmq) SendToNext(msg []byte) (total int, err error) {
 		}
 	}
 
-	packet := [][]byte{[]byte{componentPacket}, msg}
+	packet := newPacket(msg)
 	return p.socket.SendMessage(packet)
 }
 
@@ -76,4 +76,19 @@ func createZmqOutputPort(url string) (socket *zmq.Socket, err error) {
 	}
 
 	return socket, nil
+}
+
+func newPacket(msg []byte) [][]byte {
+	return [][]byte{[]byte{componentPacket}, msg}
+}
+
+func isValidPacket(msg interface{}) bool {
+	if msgb, ok := msg.([][]byte); ok {
+		if len(msgb[0]) == 1 && msgb[0][0] == componentPacket {
+			return true
+		}
+	}
+
+	return false
+
 }

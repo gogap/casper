@@ -204,6 +204,13 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 				comsg.Payload.Result = nil
 			} else {
 				log.Infoln(p.Name, "Call handler ok")
+				if _, ok := ret.(Payload); ok {
+					panic(fmt.Errorf("%s. worker return can't be Payload or *Payload", p.Name))
+				}
+				if _, ok := ret.(*Payload); ok {
+					panic(fmt.Errorf("%s. worker return can't be Payload or *Payload", p.Name))
+				}
+				
 				comsg.Payload.Result = ret
 			}
 		}
