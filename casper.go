@@ -141,7 +141,7 @@ func (p *App) Run() {
 	// 验证graph
 	for k, v := range p.graphs {
 		for i := 0; i < len(v); i++ {
-			if v[i] == "0" {
+			if v[i] == "self" {
 				continue
 			}
 			if GetComponentByName(v[i]) == nil {
@@ -189,7 +189,7 @@ func (p *App) sendMsg(graphName string, comsg *ComponentMessage) (id string, ch 
 
 	// build graph
 	for i := 0; i < len(graph); i++ {
-		if i == 0 && graph[0] == "0" {
+		if i == 0 && graph[0] == "self" {
 			comsg.graph = append(comsg.graph, p.in.Url)
 			continue
 		}
@@ -238,4 +238,20 @@ func (p *App) getRequest(reqid string) chan *Payload {
 
 func (p *App) delRequest(reqid string) {
 	delete(p.requests, reqid)
+}
+
+func CallService(serviceType, addr string, msg *ComponentMessage) (reply []byte, err error) {
+	switch serviceType {
+	case "zmq":
+		{
+			msgb, _ := msg.Serialize()
+			return zmqSyncCall(addr, msgb)
+		}
+	case "http":
+		{
+
+		}
+	}
+
+	return nil, fmt.Errorf("No such serviceType %s", serviceType)
 }

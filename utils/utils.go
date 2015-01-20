@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"github.com/gogap/casper"
 	"time"
+
 )
 
 func IamWorking() {
@@ -11,11 +11,3 @@ func IamWorking() {
 	}
 }
 
-func CallService(serviceType, addr string, msg *casper.ComponentMessage) {
-	switch serviceType {
-	case "zmq":
-		{
-			casper.zmq
-		}
-	}
-}

@@ -10,9 +10,7 @@ func main() {
 	msg, _ := casper.NewComponentMessage("")
 	msg.Payload.SetContext(casper.REQ_X_API, "demo")
 
-	req, _ := msg.Serialize()
-
-	reply, _ := casper.ZmqSyncCall("tcp://localhost:5555", req)
+	reply, _ := casper.CallService("zmq", "tcp://localhost:5555", msg)
 
 	fmt.Println(string(reply))
 }

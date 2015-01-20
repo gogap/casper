@@ -105,7 +105,7 @@ func (p *zmqEntrance) zmqEntranceHandler(app *App) {
 	}
 }
 
-func ZmqSyncCall(endpoint string, request []byte) (reply []byte, err error) {
+func zmqSyncCall(endpoint string, request []byte) (reply []byte, err error) {
 	client, err := zmq.NewSocket(zmq.REQ)
 	if err != nil {
 		return nil, err

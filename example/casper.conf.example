@@ -19,7 +19,7 @@
         "in_type": "zmq",
         "in_addr": "tcp://127.0.0.1:5000",
         "graphs": {
-            "demo": ["0"]
+            "demo": ["self"]
         }
     }],
     "components": [{

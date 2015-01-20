@@ -12,7 +12,7 @@ func main() {
 	casper.BuildAppFromConfig("./casper.conf.example")
 	
 	com := casper.GetAppByName("syncService")
-	com.SetHandler(handler)
+//	com.SetHandler(handler)
 	com.Run()
 }
 
