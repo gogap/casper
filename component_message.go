@@ -162,7 +162,7 @@ func (p *Payload) UnmarshalResult(v interface{}) error {
 		return nil
 	}
 
-	return fmt.Errorf("Type of %s & %s error", reflect.TypeOf(p.Result).Name(), reflect.TypeOf(v).Name())
+	return fmt.Errorf("Type of Result(%v) & v(%v) error", reflect.TypeOf(p.Result), reflect.TypeOf(v))
 }
 
 func (p *Payload) SetContext(key string, val interface{}) {
