@@ -240,12 +240,11 @@ func (p *App) delRequest(reqid string) {
 	delete(p.requests, reqid)
 }
 
-func CallService(serviceType, addr string, msg *ComponentMessage) (reply []byte, err error) {
+func CallService(serviceType, addr string, msg *ComponentMessage) (reply *ComponentMessage, err error) {
 	switch serviceType {
 	case "zmq":
 		{
-			msgb, _ := msg.Serialize()
-			return zmqSyncCall(addr, msgb)
+			return zmqSyncCall(addr, msg)
 		}
 	case "http":
 		{

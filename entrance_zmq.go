@@ -99,13 +99,12 @@ func (p *zmqEntrance) zmqEntranceHandler(app *App) {
 		}
 
 		coMsg.Payload = load
-
 		rst, _ := coMsg.Serialize()
 		p.socket.SendMessage(newPacket(rst))
 	}
 }
 
-func zmqSyncCall(endpoint string, request []byte) (reply []byte, err error) {
+func zmqSyncCall(endpoint string, request *ComponentMessage) (reply *ComponentMessage, err error) {
 	client, err := zmq.NewSocket(zmq.REQ)
 	if err != nil {
 		return nil, err
@@ -113,13 +112,15 @@ func zmqSyncCall(endpoint string, request []byte) (reply []byte, err error) {
 	if err := client.Connect(endpoint); err != nil {
 		return nil, err
 	}
+	log.Infoln("zmq connect ok:", endpoint)
 
-	packet := [][]byte{[]byte{componentPacket}, request}
+	msg, _ := request.Serialize()
+	packet := newPacket(msg)
 	total, err := client.SendMessage(packet)
 	if err != nil {
 		return nil, err
 	}
-	log.Infoln("sendok: ", total, endpoint, string(request))
+	log.Infoln("sendok: ", total, endpoint, string(msg))
 
 	poller := zmq.NewPoller()
 	poller.Add(client, zmq.POLLIN)
@@ -135,11 +136,13 @@ func zmqSyncCall(endpoint string, request []byte) (reply []byte, err error) {
 			return nil, err
 		}
 
-		if !(len(ip) == 2 && len(ip[0]) == 1 && ip[0][0] == componentPacket) {
-			return ip[0], fmt.Errorf("recv not valid message")
+		if !isValidPacket(ip) {
+			return nil, fmt.Errorf("recv not valid message")
 		}
-
-		return ip[1], nil
+		
+		rst := new(ComponentMessage)
+		rst.FromJson(ip[1])
+		return rst, nil
 	}
 
 	return nil, fmt.Errorf("Time out")
