@@ -17,5 +17,6 @@ func main() {
 }
 
 func handler(msg *casper.Payload) (result interface{}, err error) {
-	return "this is syncService self", nil
+	str := "this is syncService self"
+	return &str, nil
 }

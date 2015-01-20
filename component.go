@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 
 	"github.com/gogap/errors"
@@ -192,7 +193,7 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 			ret, err = p.handler(comsg.Payload)
 			if err != nil {
 				// 业务处理错误, 发给入口
-				log.Errorln("worker error, send to entrance:", smsg)
+				log.Errorln("worker error, send to entrance:", smsg, err.Error())
 				if errors.IsErrCode(err) == false {
 					comsg.Payload.Code = 500
 					comsg.Payload.Message = err.Error()
@@ -204,13 +205,17 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 				comsg.Payload.Result = nil
 			} else {
 				log.Infoln(p.Name, "Call handler ok")
-				if _, ok := ret.(Payload); ok {
-					panic(fmt.Errorf("%s. worker return can't be Payload or *Payload", p.Name))
+				if ret != nil {
+					if _, ok := ret.(Payload); ok {
+						panic(fmt.Errorf("%s. worker return can't be Payload or *Payload", p.Name))
+					}
+					if _, ok := ret.(*Payload); ok {
+						panic(fmt.Errorf("%s. worker return can't be Payload or *Payload", p.Name))
+					}
+					if reflect.TypeOf(ret).Kind() != reflect.Ptr {
+						panic(fmt.Errorf("%s. worker return must be Ptr", p.Name))
+					}
 				}
-				if _, ok := ret.(*Payload); ok {
-					panic(fmt.Errorf("%s. worker return can't be Payload or *Payload", p.Name))
-				}
-				
 				comsg.Payload.Result = ret
 			}
 		}
