@@ -205,18 +205,23 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 				comsg.Payload.Result = nil
 			} else {
 				log.Infoln(p.Name, "Call handler ok")
+				comsg.Payload.Result = ret
 				if ret != nil {
-					if _, ok := ret.(Payload); ok {
-						panic(fmt.Errorf("%s. worker return can't be Payload or *Payload", p.Name))
-					}
-					if _, ok := ret.(*Payload); ok {
-						panic(fmt.Errorf("%s. worker return can't be Payload or *Payload", p.Name))
+					_, ok := ret.(Payload)
+					_, ok1 := ret.(*Payload)
+					if ok || ok1 {
+						comsg.Payload.Code = 500
+						comsg.Payload.Message = "业务返回数据类型错误"
+						comsg.Payload.Result = nil
+						log.Errorf("%s. worker return can't be Payload or *Payload", p.Name)
 					}
 					if reflect.TypeOf(ret).Kind() != reflect.Ptr {
-						panic(fmt.Errorf("%s. worker return must be Ptr", p.Name))
+						log.Errorf("%s. worker return must be Ptr", p.Name)
+						comsg.Payload.Code = 500
+						comsg.Payload.Message = "业务返回数据类型错误"
+						comsg.Payload.Result = nil
 					}
 				}
-				comsg.Payload.Result = ret
 			}
 		}
 
