@@ -10,7 +10,8 @@
         "graphs": {
             "user.info.get": ["com1", "com2", "com3"],
             "user.info.save": ["com2", "com3", "com1"],
-            "demo": ["com1"]
+            "demo": ["com1"],
+            "handle_rotato": ["com4"]
         }
     },{
         "name": "syncService",
@@ -38,5 +39,10 @@
         "description": "this is com3",
         "type": "zmq",
         "in": "tcp://127.0.0.1:5003"
+    }, {
+        "name": "com4",
+        "description": "this is com4",
+        "type": "zmq",
+        "in": "tcp://127.0.0.1:5004"
     }]
 }

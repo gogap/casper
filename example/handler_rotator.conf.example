@@ -1,0 +1,8 @@
+{
+  "handlers": [
+    {
+      "component_name": "com4",
+      "handler": "product"
+    }
+  ]
+}
