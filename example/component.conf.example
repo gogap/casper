@@ -14,5 +14,10 @@
         "description": "this is com3",
         "type": "zmq",
         "in": "tcp://127.0.0.1:5003"
+    }, {
+        "name": "com4",
+        "description": "this is com3",
+        "type": "zmq",
+        "in": "tcp://127.0.0.1:5004"
     }]
 }
