@@ -3,6 +3,7 @@
         "name": "example",
         "description": "this is http service",
         "entrace": "martini",
+	"domain": "example.com",
         "addr": "127.0.0.1:8088",
         "in_type": "zmq",
         "in_addr": "tcp://127.0.0.1:5000",

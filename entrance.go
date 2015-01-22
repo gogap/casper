@@ -9,10 +9,11 @@ const (
 	REQ_TIMEOUT = time.Duration(15) * time.Second
 	REQ_X_API   = "X-API"
 
-	SESSION_HEADER_KEY = "sessionID"
-	USER_HEADER_KEY    = "userKey"
+	SESSION_KEY = "sessionID"
+	USER_KEY    = "userKey"
 
 	CMD_HTTP_HEADER_WRITE = "CMD_HTTP_HEADER_WRITE"
+	CMD_SET_SESSION       = "CMD_SET_SESSION"
 )
 
 var entrances map[string]entranceType = make(map[string]entranceType)

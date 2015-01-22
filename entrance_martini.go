@@ -26,11 +26,21 @@ func NewMartiniEntrances() entrance {
 func (p *martiniEntrance) StartService(app *App, addr string) {
 	p.martini = martini.Classic()
 	p.martini.Post("/"+app.Name, martiniHandle(app))
+	p.martini.Options("/"+app.Name, martiniOptionsHandle)
 	log.Infoln("martiniEntrance start at:", addr)
 	p.martini.RunOnAddr(addr)
 }
 
-func martiniHandle(p *App) func(http.ResponseWriter, *http.Request) {
+func martiniOptionsHandle(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	//w.Header().Add("Access-Control-Allow-Headers", "X-API")
+	w.Header().Add("Access-Control-Allow-Credentials", "true")
+	w.Header().Add("Access-Control-Allow-Methods", "POST")
+	w.Header().Add("P3P", `CP="CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR"`)
+	w.Header().Add("Access-Control-Allow-Headers", "X-API, X-REQUEST-ID, X-API-TRANSACTION, X-API-TRANSACTION-TIMEOUT, X-RANGE, Origin, X-Requested-With, Content-Type, Accept")
+}
+
+func martiniHandle(app *App) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		apiName := r.Header.Get(REQ_X_API)
 		if apiName == "" {
@@ -38,20 +48,21 @@ func martiniHandle(p *App) func(http.ResponseWriter, *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
+		log.Infoln("handle:", apiName)
 
 		reqBody, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			log.Errorln("request body err:", p.Name, err.Error())
+			log.Errorln("request body err:", app.Name, err.Error())
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Read request body error"))
 			return
 		}
-		log.Infoln("httpRequest:", p.Name, string(reqBody))
+		log.Infoln("httpRequest:", app.Name, string(reqBody))
 
 		// cookie
 		sessionids := ""
 		userids := ""
-		sessionid, err := r.Cookie(SESSION_HEADER_KEY)
+		sessionid, err := r.Cookie(SESSION_KEY)
 		if err != nil || sessionid == nil {
 			uuidTmp, _ := uuid.NewV4()
 			sessionids = uuidTmp.String()
@@ -59,7 +70,7 @@ func martiniHandle(p *App) func(http.ResponseWriter, *http.Request) {
 			sessionids = sessionid.Value
 		}
 
-		userid, err := r.Cookie(USER_HEADER_KEY)
+		userid, err := r.Cookie(USER_KEY)
 		if userid != nil {
 			userids = userid.Value
 		}
@@ -67,12 +78,12 @@ func martiniHandle(p *App) func(http.ResponseWriter, *http.Request) {
 		// Componet message
 		coMsg, _ := NewComponentMessage("")
 		coMsg.Payload.SetContext(REQ_X_API, apiName)
-		coMsg.Payload.SetContext(SESSION_HEADER_KEY, sessionids)
-		coMsg.Payload.SetContext(USER_HEADER_KEY, userids)
+		coMsg.Payload.SetContext(SESSION_KEY, sessionids) // 会话ID
+		coMsg.Payload.SetContext(USER_KEY, userids)
 		coMsg.Payload.Result = reqBody
 
 		// send msg to next
-		id, ch, err := p.sendMsg(apiName, coMsg)
+		id, ch, err := app.sendMsg(apiName, coMsg)
 		if err != nil {
 			log.Errorln("sendMsg err:", coMsg.ID, err.Error())
 			w.WriteHeader(http.StatusBadRequest)
@@ -86,7 +97,7 @@ func martiniHandle(p *App) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 		defer close(ch)
-		defer p.delRequest(id)
+		defer app.delRequest(id)
 
 		// Wait for response from IN port
 		log.Infoln("Waiting for response: ", apiName, string(reqBody))
@@ -100,14 +111,30 @@ func martiniHandle(p *App) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		// deal cmd
-		cmd := make(map[string]string)
-		err = load.GetCommandObject(CMD_HTTP_HEADER_WRITE, cmd)
+		// SESSION
+		var cmd map[string]string
+		err = load.GetCommandObject(CMD_SET_SESSION, &cmd)
 		if err != nil {
+			log.Errorln("session CMD:", err.Error())
+		} else {
+			log.Infoln("get session:", sessionids, cmd)
 			for k, v := range cmd {
-				r.AddCookie(&http.Cookie{Name: k, Value: v, Path: "/"})
+				if k == USER_KEY {
+					log.Infoln("add cookie:", k, v)
+					http.SetCookie(w, &http.Cookie{Name: k, Value: v, Domain: app.domain, Path: "/"})
+				}
+				log.Infoln("set session:", sessionids, k, v)
+				SessionSetByte(sessionids, k, []byte(v))
 			}
 		}
+
+		http.SetCookie(w, &http.Cookie{Name: SESSION_KEY, Value: sessionids, Domain: app.domain, Path: "/", MaxAge: 36000, HttpOnly: true})
+		w.Header().Set("content-type", "application/json") //返回数据格式是json
+		w.Header().Set("Access-Control-Allow-Origin", "http://investor.rijin.com")
+		w.Header().Add("Access-Control-Allow-Credentials", "true")
+		w.Header().Add("Access-Control-Allow-Methods", "POST")
+		w.Header().Add("Access-Control-Allow-Headers", "X-API, X-REQUEST-ID, X-API-TRANSACTION, X-API-TRANSACTION-TIMEOUT, X-RANGE, Origin, X-Requested-With, Content-Type, Accept")
+		w.Header().Add("P3P", `CP="CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR"`)
 
 		objResp := HttpResponse{
 			Code:    load.Code,

@@ -491,10 +491,15 @@ func (p *Payload) GetCommandObject(key string, v interface{}) (err error) {
 		err = fmt.Errorf("the command key of %s is exist, but the value is nil", key)
 		return
 	} else {
-		if bJson, e := json.Marshal(val); e != nil {
+		var bJson []byte
+		var e error
+		if bJson, e = json.Marshal(val); e != nil {
 			err = fmt.Errorf("marshal object of %s to json failed, error is:%v", key, e)
 			return
-		} else if e := json.Unmarshal(bJson, v); e != nil {
+		}
+		fmt.Println(">>>>>>>>", string(bJson), v)
+		if e := json.Unmarshal(bJson, v); e != nil {
+			fmt.Println(e)
 			err = fmt.Errorf("unmarshal json to object %s failed, error is:%v", key, e)
 			return
 		}

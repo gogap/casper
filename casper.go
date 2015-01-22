@@ -22,6 +22,7 @@ type App struct {
 	Component
 	entrance
 
+	domain   string
 	addr     string
 	apptype  string
 	graphs   map[string][]string
@@ -40,6 +41,7 @@ func BuildAppFromConfig(filePath string) {
 			Name        string              `json:"name"`
 			Description string              `json:"description"`
 			Entrace     string              `json:"entrace"`
+			Domain      string              `json:"domain"`
 			Addr        string              `json:"addr"`
 			Intype      string              `json:"in_type"`
 			Inaddr      string              `json:"in_addr"`
@@ -77,6 +79,7 @@ func BuildAppFromConfig(filePath string) {
 			appConf.Addr,
 			appConf.Intype,
 			appConf.Inaddr,
+			appConf.Domain,
 			appConf.Graphs)
 		if err != nil {
 			panic(err)
@@ -84,7 +87,7 @@ func BuildAppFromConfig(filePath string) {
 	}
 }
 
-func NewApp(name, description, apptype, addr, intype, inaddr string, graphs map[string][]string) (app *App, err error) {
+func NewApp(name, description, apptype, addr, intype, inaddr, domain string, graphs map[string][]string) (app *App, err error) {
 	sname, stype, saddr := strings.TrimSpace(name), strings.TrimSpace(apptype), strings.TrimSpace(addr)
 	sintype, sinaddr := strings.TrimSpace(intype), strings.TrimSpace(inaddr)
 	if sname == "" {
@@ -112,6 +115,7 @@ func NewApp(name, description, apptype, addr, intype, inaddr string, graphs map[
 			outs:        make(map[string]*EndPoint),
 			handler:     nil},
 		entrance: nil,
+		domain:   domain,
 		addr:     saddr,
 		apptype:  stype,
 		graphs:   graphs,
