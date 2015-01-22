@@ -192,34 +192,34 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 		if p.handler != nil {
 			log.Infoln(p.Name, "Call handler")
 			ret, err = p.handler(comsg.Payload)
-			comsg.Payload.Result = nil
+			comsg.Payload.result = nil
 			if err != nil {
 				// 业务处理错误, 发给入口
 				log.Errorln("worker error, send to entrance:", smsg, err.Error())
 				if errors.IsErrCode(err) == false {
-					comsg.Payload.Code = 500
-					comsg.Payload.Message = err.Error()
+					comsg.Payload.code = 500
+					comsg.Payload.message = err.Error()
 				} else {
-					comsg.Payload.Code = err.(errors.ErrCode).Code()
-					comsg.Payload.Message = err.(errors.ErrCode).Error()
+					comsg.Payload.code = err.(errors.ErrCode).Code()
+					comsg.Payload.message = err.(errors.ErrCode).Error()
 				}
 				next = comsg.entrance
 				comsg.graph = nil
 			} else {
 				if ret != nil {
 					if utils.IsStruct(ret) {
-						comsg.Payload.Result, err = json.Marshal(ret)
+						comsg.Payload.result, err = json.Marshal(ret)
 						if err != nil {
 							log.Errorln("work result Marshal:", err.Error(), ret)
-							comsg.Payload.Code = 500
-							comsg.Payload.Message = err.Error()
+							comsg.Payload.code = 500
+							comsg.Payload.message = err.Error()
 							next = comsg.entrance
 							comsg.graph = nil
 						}
 					} else {
 						log.Errorln("work result type error", ret)
-						comsg.Payload.Code = 500
-						comsg.Payload.Message = fmt.Sprintf("%v. worker return must struct", p.Name)
+						comsg.Payload.code = 500
+						comsg.Payload.message = fmt.Sprintf("%v. worker return must struct", p.Name)
 						next = comsg.entrance
 						comsg.graph = nil
 					}

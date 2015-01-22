@@ -80,7 +80,7 @@ func martiniHandle(app *App) func(http.ResponseWriter, *http.Request) {
 		coMsg.Payload.SetContext(REQ_X_API, apiName)
 		coMsg.Payload.SetContext(SESSION_KEY, sessionids) // 会话ID
 		coMsg.Payload.SetContext(USER_KEY, userids)
-		coMsg.Payload.Result = reqBody
+		coMsg.Payload.result = reqBody
 
 		// send msg to next
 		id, ch, err := app.sendMsg(apiName, coMsg)
@@ -137,9 +137,9 @@ func martiniHandle(app *App) func(http.ResponseWriter, *http.Request) {
 		w.Header().Add("P3P", `CP="CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR"`)
 
 		objResp := HttpResponse{
-			Code:    load.Code,
-			Message: load.Message,
-			Result:  load.Result}
+			Code:    load.code,
+			Message: load.message,
+			Result:  load.result}
 
 		bResp, _ := json.Marshal(objResp)
 		w.Write(bResp)

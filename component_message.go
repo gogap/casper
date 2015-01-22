@@ -27,11 +27,11 @@ type ComponentMessage struct {
 }
 
 type Payload struct {
-	Code    uint64            `json:"code"`
-	Message string            `json:"message"`
+	code    uint64            `json:"code"`
+	message string            `json:"message"`
 	context componentContext  `json:"context"`
 	command componentCommands `json:"command"`
-	Result  []byte            `json:"result"`
+	result  []byte            `json:"result,omitempty"`
 }
 
 func NewComponentMessage(entrance string) (msg *ComponentMessage, err error) {
@@ -49,11 +49,11 @@ func NewComponentMessage(entrance string) (msg *ComponentMessage, err error) {
 		graph:    nil,
 		chain:    nil,
 		Payload: &Payload{
-			Code:    0,
-			Message: "OK",
+			code:    0,
+			message: "OK",
 			context: make(map[string]interface{}),
 			command: make(map[string]interface{}),
-			Result:  nil}}
+			result:  nil}}
 
 	return
 }
@@ -102,11 +102,11 @@ func (p *ComponentMessage) Serialize() ([]byte, error) {
 	tmp.Graph = p.graph
 	tmp.Chain = p.chain
 	if p.Payload != nil {
-		tmp.Payload.Code = p.Payload.Code
-		tmp.Payload.Message = p.Payload.Message
+		tmp.Payload.Code = p.Payload.code
+		tmp.Payload.Message = p.Payload.message
 		tmp.Payload.Context = p.Payload.context
 		tmp.Payload.Command = p.Payload.command
-		tmp.Payload.Result = p.Payload.Result
+		tmp.Payload.Result = p.Payload.result
 	}
 
 	return json.Marshal(tmp)
@@ -136,23 +136,23 @@ func (p *ComponentMessage) FromJson(jsonStr []byte) (err error) {
 	p.graph = tmp.Graph
 	p.chain = tmp.Chain
 	p.Payload = &Payload{
-		Code:    tmp.Payload.Code,
-		Message: tmp.Payload.Message,
+		code:    tmp.Payload.Code,
+		message: tmp.Payload.Message,
 		context: tmp.Payload.Context,
 		command: tmp.Payload.Command,
-		Result:  tmp.Payload.Result}
+		result:  tmp.Payload.Result}
 
 	return nil
 }
 
 func (p *Payload) UnmarshalResult(v interface{}) error {
-	if p.Result == nil {
+	if p.result == nil {
 		return nil
 	}
 
-	dst, err := base64.StdEncoding.DecodeString(string(p.Result))
+	dst, err := base64.StdEncoding.DecodeString(string(p.result))
 	if err != nil {
-		return json.Unmarshal(p.Result, v)
+		return json.Unmarshal(p.result, v)
 	} else {
 		return json.Unmarshal(dst, v)
 	}
@@ -490,7 +490,7 @@ func (p *Payload) GetCommandObject(key string, v interface{}) (err error) {
 			err = fmt.Errorf("marshal object of %s to json failed, error is:%v", key, e)
 			return
 		}
-		
+
 		if e := json.Unmarshal(bJson, v); e != nil {
 			fmt.Println(e)
 			err = fmt.Errorf("unmarshal json to object %s failed, error is:%v", key, e)
