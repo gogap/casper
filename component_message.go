@@ -31,7 +31,7 @@ type Payload struct {
 	Message string            `json:"message"`
 	context componentContext  `json:"context"`
 	command componentCommands `json:"command"`
-	Result  interface{}       `json:"result"`
+	Result  []byte            `json:"result"`
 }
 
 func NewComponentMessage(entrance string) (msg *ComponentMessage, err error) {
@@ -92,7 +92,7 @@ func (p *ComponentMessage) Serialize() ([]byte, error) {
 			Message string            `json:"message"`
 			Context componentContext  `json:"context"`
 			Command componentCommands `json:"command"`
-			Result  interface{}       `json:"result"`
+			Result  []byte            `json:"result"`
 		} `json:"payload"`
 	}
 
@@ -123,7 +123,7 @@ func (p *ComponentMessage) FromJson(jsonStr []byte) (err error) {
 			Message string            `json:"message"`
 			Context componentContext  `json:"context,omitempty"`
 			Command componentCommands `json:"command,omitempty"`
-			Result  interface{}       `json:"result"`
+			Result  []byte            `json:"result"`
 		} `json:"payload"`
 	}
 
@@ -150,19 +150,12 @@ func (p *Payload) UnmarshalResult(v interface{}) error {
 		return nil
 	}
 
-	if str, ok := p.Result.(string); ok == true {
-		var byteData []byte
-		var err error
-		if byteData, err = base64.StdEncoding.DecodeString(str); err != nil {
-			return err
-		}
-		return json.Unmarshal(byteData, v)
-	} else if reflect.TypeOf(p.Result) == reflect.TypeOf(v) {
-		v = p.Result
-		return nil
+	dst, err := base64.StdEncoding.DecodeString(string(p.Result))
+	if err != nil {
+		return json.Unmarshal(p.Result, v)
+	} else {
+		return json.Unmarshal(dst, v)
 	}
-
-	return fmt.Errorf("Type of Result(%v) & v(%v) error", reflect.TypeOf(p.Result), reflect.TypeOf(v))
 }
 
 func (p *Payload) SetContext(key string, val interface{}) {
@@ -497,7 +490,7 @@ func (p *Payload) GetCommandObject(key string, v interface{}) (err error) {
 			err = fmt.Errorf("marshal object of %s to json failed, error is:%v", key, e)
 			return
 		}
-		fmt.Println(">>>>>>>>", string(bJson), v)
+		
 		if e := json.Unmarshal(bJson, v); e != nil {
 			fmt.Println(e)
 			err = fmt.Errorf("unmarshal json to object %s failed, error is:%v", key, e)

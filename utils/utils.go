@@ -1,8 +1,8 @@
 package utils
 
 import (
+	"reflect"
 	"time"
-
 )
 
 func IamWorking() {
@@ -11,3 +11,15 @@ func IamWorking() {
 	}
 }
 
+func IsStruct(s interface{}) bool {
+	v := reflect.ValueOf(s)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	if v.Kind() == reflect.Invalid {
+		return false
+	}
+
+	return v.Kind() == reflect.Struct
+}

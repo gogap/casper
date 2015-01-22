@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 
+	"github.com/gogap/casper/utils"
 	"github.com/gogap/errors"
 	log "github.com/golang/glog"
 )
@@ -183,6 +183,7 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 		if next == "" {
 			log.Warningln("next is nil. send to entrance:", smsg)
 			next = comsg.entrance
+			comsg.graph = nil
 		}
 
 		// call worker
@@ -191,6 +192,7 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 		if p.handler != nil {
 			log.Infoln(p.Name, "Call handler")
 			ret, err = p.handler(comsg.Payload)
+			comsg.Payload.Result = nil
 			if err != nil {
 				// 业务处理错误, 发给入口
 				log.Errorln("worker error, send to entrance:", smsg, err.Error())
@@ -202,31 +204,32 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 					comsg.Payload.Message = err.(errors.ErrCode).Error()
 				}
 				next = comsg.entrance
-				comsg.Payload.Result = nil
+				comsg.graph = nil
 			} else {
-				log.Infoln(p.Name, "Call handler ok")
-				comsg.Payload.Result = ret
 				if ret != nil {
-					_, ok := ret.(Payload)
-					_, ok1 := ret.(*Payload)
-					if ok || ok1 {
+					if utils.IsStruct(ret) {
+						comsg.Payload.Result, err = json.Marshal(ret)
+						if err != nil {
+							log.Errorln("work result Marshal:", err.Error(), ret)
+							comsg.Payload.Code = 500
+							comsg.Payload.Message = err.Error()
+							next = comsg.entrance
+							comsg.graph = nil
+						}
+					} else {
+						log.Errorln("work result type error", ret)
 						comsg.Payload.Code = 500
-						comsg.Payload.Message = "业务返回数据类型错误"
-						comsg.Payload.Result = nil
-						log.Errorf("%s. worker return can't be Payload or *Payload", p.Name)
-					}
-					if reflect.TypeOf(ret).Kind() != reflect.Ptr {
-						log.Errorf("%s. worker return must be Ptr", p.Name)
-						comsg.Payload.Code = 500
-						comsg.Payload.Message = "业务返回数据类型错误"
-						comsg.Payload.Result = nil
+						comsg.Payload.Message = fmt.Sprintf("%v. worker return must struct", p.Name)
+						next = comsg.entrance
+						comsg.graph = nil
 					}
 				}
+				log.Infoln(p.Name, "Call handler ok")
 			}
 		}
 
 		// 正常发到下一站
-		log.Infoln("sendToNext:", smsg)
+		log.Infoln("sendToNext:", next, smsg)
 		msg, _ := comsg.Serialize()
 		if _, err = p.sendToNext(next, msg); err != nil {
 			log.Errorf(p.Name, "sendToNext error: ", smsg)

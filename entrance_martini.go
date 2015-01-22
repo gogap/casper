@@ -128,7 +128,7 @@ func martiniHandle(app *App) func(http.ResponseWriter, *http.Request) {
 			}
 		}
 
-		http.SetCookie(w, &http.Cookie{Name: SESSION_KEY, Value: sessionids, Domain: app.domain, Path: "/", MaxAge: 36000, HttpOnly: true})
+		http.SetCookie(w, &http.Cookie{Name: SESSION_KEY, Value: sessionids, Domain: app.domain, Path: "/"})
 		w.Header().Set("content-type", "application/json") //返回数据格式是json
 		w.Header().Set("Access-Control-Allow-Origin", "http://investor.rijin.com")
 		w.Header().Add("Access-Control-Allow-Credentials", "true")
