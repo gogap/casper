@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	msg, _ := casper.NewComponentMessage("")
+	msg, _ := casper.NewComponentMessage("", nil)
 	msg.Payload.SetContext(casper.REQ_X_API, "demo")
 
 	reply, _ :=casper.CallService("zmq", "tcp://localhost:5555", msg)

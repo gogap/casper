@@ -35,7 +35,7 @@ type Payload struct {
 	result  []byte            `json:"result,omitempty"`
 }
 
-func NewComponentMessage(entrance string, result []byte) (msg *ComponentMessage, err error) {
+func NewComponentMessage(entrance string, result interface{}) (msg *ComponentMessage, err error) {
 	msgID := ""
 	if u, e := uuid.NewV4(); e != nil {
 		err = e
@@ -54,9 +54,11 @@ func NewComponentMessage(entrance string, result []byte) (msg *ComponentMessage,
 			Message: "OK",
 			context: make(map[string]interface{}),
 			command: make(map[string]interface{}),
-			result:  result}}
+			result:  nil}}
 
-	return
+	return msg, msg.Payload.setResult(result)
+
+	
 }
 
 func (p *ComponentMessage) SetEntrance(entrance string) {
@@ -160,6 +162,11 @@ func (p *Payload) UnmarshalResult(v interface{}) error {
 }
 
 func (p *Payload) setResult(v interface{}) (err error) {
+	if v == nil {
+		p.result = nil
+		return nil
+	}
+	
 	if !utils.IsStruct(v) && !utils.IsStructArray(v) {
 		err = fmt.Errorf("worker return must struct or []struct")
 		return

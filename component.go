@@ -106,11 +106,13 @@ func SetHandlers(handlers ComponentHandlers) {
 	}
 }
 
-func (p *Component) SetHandler(handler ComponentHandler) {
+func (p *Component) SetHandler(handler ComponentHandler) *Component {
 	if handler == nil {
 		panic("handler could not be nil")
 	}
 	p.handler = handler
+
+	return p
 }
 
 func (p *Component) GetOutPoint(url string) *EndPoint {
