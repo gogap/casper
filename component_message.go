@@ -58,7 +58,6 @@ func NewComponentMessage(entrance string, result interface{}) (msg *ComponentMes
 
 	return msg, msg.Payload.setResult(result)
 
-	
 }
 
 func (p *ComponentMessage) SetEntrance(entrance string) {
@@ -153,6 +152,10 @@ func (p *Payload) UnmarshalResult(v interface{}) error {
 		return nil
 	}
 
+	if p.result[0] == '"' {
+		p.result = p.result[1:(len(p.result) - 1)]
+	}
+
 	dst, err := base64.StdEncoding.DecodeString(string(p.result))
 	if err != nil {
 		return json.Unmarshal(p.result, v)
@@ -166,7 +169,7 @@ func (p *Payload) setResult(v interface{}) (err error) {
 		p.result = nil
 		return nil
 	}
-	
+
 	if !utils.IsStruct(v) && !utils.IsStructArray(v) {
 		err = fmt.Errorf("worker return must struct or []struct")
 		return

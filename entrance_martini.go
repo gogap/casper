@@ -80,7 +80,7 @@ func martiniHandle(app *App) func(http.ResponseWriter, *http.Request) {
 		coMsg.Payload.SetContext(REQ_X_API, apiName)
 		coMsg.Payload.SetContext(SESSION_KEY, sessionids) // 会话ID
 		coMsg.Payload.SetContext(USER_KEY, userids)
-
+		
 		// send msg to next
 		id, ch, err := app.sendMsg(apiName, coMsg)
 		if err != nil {
