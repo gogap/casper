@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gogap/casper/utils"
 	"github.com/gogap/errors"
 	log "github.com/golang/glog"
 )
@@ -207,19 +206,11 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 				comsg.graph = nil
 			} else {
 				if ret != nil {
-					if utils.IsStruct(ret) {
-						comsg.Payload.result, err = json.Marshal(ret)
-						if err != nil {
-							log.Errorln("work result Marshal:", err.Error(), ret)
-							comsg.Payload.Code = 500
-							comsg.Payload.Message = err.Error()
-							next = comsg.entrance
-							comsg.graph = nil
-						}
-					} else {
-						log.Errorln("work result type error", ret)
+					err = comsg.Payload.setResult(ret)
+					if err != nil {
+						log.Errorln("work result Marshal:", err.Error(), ret)
 						comsg.Payload.Code = 500
-						comsg.Payload.Message = fmt.Sprintf("%v. worker return must struct", p.Name)
+						comsg.Payload.Message = fmt.Sprintf("%v. %v", p.Name, err.Error())
 						next = comsg.entrance
 						comsg.graph = nil
 					}

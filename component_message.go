@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/gogap/casper/utils"
 	uuid "github.com/nu7hatch/gouuid"
 )
 
@@ -158,13 +159,14 @@ func (p *Payload) UnmarshalResult(v interface{}) error {
 	}
 }
 
-func (p *Payload) getResult() (dst []byte, err error) {
-	if p.result == nil {
-		return nil, fmt.Errorf("result is nil")
+func (p *Payload) setResult(v interface{}) (err error) {
+	if !utils.IsStruct(v) && !utils.IsStructArray(v) {
+		err = fmt.Errorf("worker return must struct or []struct")
+		return
 	}
 
-	fmt.Println("'%v'", string(p.result))
-	err = json.Unmarshal(p.result, dst)
+	p.result, err = json.Marshal(v)
+
 	return
 }
 
