@@ -196,7 +196,7 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 			comsg.Payload.result = nil
 			if err != nil {
 				// 业务处理错误, 发给入口
-				log.Errorln("worker error, send to entrance:", smsg, err.Error())
+				log.Warningln("worker error, send to entrance:", smsg, err.Error())
 				if errors.IsErrCode(err) == false {
 					comsg.Payload.Code = 500
 					comsg.Payload.Message = err.Error()
