@@ -1,7 +1,7 @@
 package casper
 
 import (
-	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -76,11 +76,10 @@ func martiniHandle(app *App) func(http.ResponseWriter, *http.Request) {
 		}
 
 		// Componet message
-		coMsg, _ := NewComponentMessage("")
+		coMsg, _ := NewComponentMessage("", reqBody)
 		coMsg.Payload.SetContext(REQ_X_API, apiName)
 		coMsg.Payload.SetContext(SESSION_KEY, sessionids) // 会话ID
 		coMsg.Payload.SetContext(USER_KEY, userids)
-		coMsg.Payload.result = reqBody
 
 		// send msg to next
 		id, ch, err := app.sendMsg(apiName, coMsg)
@@ -111,6 +110,8 @@ func martiniHandle(app *App) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
+		fmt.Println(string(load.result))
+
 		// SESSION
 		var cmd map[string]string
 		err = load.GetCommandObject(CMD_SET_SESSION, &cmd)
@@ -136,13 +137,8 @@ func martiniHandle(app *App) func(http.ResponseWriter, *http.Request) {
 		w.Header().Add("Access-Control-Allow-Headers", "X-API, X-REQUEST-ID, X-API-TRANSACTION, X-API-TRANSACTION-TIMEOUT, X-RANGE, Origin, X-Requested-With, Content-Type, Accept")
 		w.Header().Add("P3P", `CP="CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR"`)
 
-		objResp := HttpResponse{
-			Code:    load.code,
-			Message: load.message,
-			Result:  load.result}
-
-		bResp, _ := json.Marshal(objResp)
-		w.Write(bResp)
-		log.Infoln("Data arrived. Responding to HTTP response...", string(bResp))
+		resp := fmt.Sprintf("{\n\"code\":%v,\n\"message\":\"%v\",\n\"result\":%v\n}", load.Code, load.Message, string(load.result))
+		w.Write([]byte(resp))
+		log.Infoln("Data arrived. Responding to HTTP response...", resp)
 	}
 }

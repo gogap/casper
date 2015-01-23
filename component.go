@@ -18,9 +18,9 @@ var components map[string]*Component = make(map[string]*Component)
 
 // 端点
 type EndPoint struct {
+	mq
 	Url    string
 	MQType string
-	mq
 }
 
 // 组件
@@ -197,11 +197,11 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 				// 业务处理错误, 发给入口
 				log.Errorln("worker error, send to entrance:", smsg, err.Error())
 				if errors.IsErrCode(err) == false {
-					comsg.Payload.code = 500
-					comsg.Payload.message = err.Error()
+					comsg.Payload.Code = 500
+					comsg.Payload.Message = err.Error()
 				} else {
-					comsg.Payload.code = err.(errors.ErrCode).Code()
-					comsg.Payload.message = err.(errors.ErrCode).Error()
+					comsg.Payload.Code = err.(errors.ErrCode).Code()
+					comsg.Payload.Message = err.(errors.ErrCode).Error()
 				}
 				next = comsg.entrance
 				comsg.graph = nil
@@ -211,15 +211,15 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 						comsg.Payload.result, err = json.Marshal(ret)
 						if err != nil {
 							log.Errorln("work result Marshal:", err.Error(), ret)
-							comsg.Payload.code = 500
-							comsg.Payload.message = err.Error()
+							comsg.Payload.Code = 500
+							comsg.Payload.Message = err.Error()
 							next = comsg.entrance
 							comsg.graph = nil
 						}
 					} else {
 						log.Errorln("work result type error", ret)
-						comsg.Payload.code = 500
-						comsg.Payload.message = fmt.Sprintf("%v. worker return must struct", p.Name)
+						comsg.Payload.Code = 500
+						comsg.Payload.Message = fmt.Sprintf("%v. worker return must struct", p.Name)
 						next = comsg.entrance
 						comsg.graph = nil
 					}
@@ -238,12 +238,13 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 		// 消息流出错了或是已经走到了入口
 		msg, _ := comsg.Serialize()
 		if p.app != nil {
+			// 到入口了, 抛给上层
 			log.Infoln(p.Name, "Msg to entrance:", smsg)
 			if err := p.app.recvMsg(comsg); err != nil {
 				log.Errorln(p.Name, "msg to entrance err:", err.Error())
 			}
 		} else {
-			// send to entrance
+			// 链路错了， 发给入口
 			log.Errorln("msg's next null, send to entrance", smsg)
 			_, err := p.sendToNext(comsg.entrance, msg)
 			if err != nil {

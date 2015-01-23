@@ -50,7 +50,7 @@ func (p *zmqEntrance) zmqEntranceHandler(app *App) {
 
 		log.Infoln("recvMessage:", string(msg[1]))
 
-		coMsg, _ := NewComponentMessage("")
+		coMsg, _ := NewComponentMessage("", nil)
 		err = coMsg.FromJson(msg[1])
 		if err != nil {
 			log.Errorln("RecvMessage message fmt error.")

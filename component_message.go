@@ -27,14 +27,14 @@ type ComponentMessage struct {
 }
 
 type Payload struct {
-	code    uint64            `json:"code"`
-	message string            `json:"message"`
+	Code    uint64            `json:"code"`
+	Message string            `json:"message"`
 	context componentContext  `json:"context"`
 	command componentCommands `json:"command"`
 	result  []byte            `json:"result,omitempty"`
 }
 
-func NewComponentMessage(entrance string) (msg *ComponentMessage, err error) {
+func NewComponentMessage(entrance string, result []byte) (msg *ComponentMessage, err error) {
 	msgID := ""
 	if u, e := uuid.NewV4(); e != nil {
 		err = e
@@ -49,11 +49,11 @@ func NewComponentMessage(entrance string) (msg *ComponentMessage, err error) {
 		graph:    nil,
 		chain:    nil,
 		Payload: &Payload{
-			code:    0,
-			message: "OK",
+			Code:    0,
+			Message: "OK",
 			context: make(map[string]interface{}),
 			command: make(map[string]interface{}),
-			result:  nil}}
+			result:  result}}
 
 	return
 }
@@ -102,8 +102,8 @@ func (p *ComponentMessage) Serialize() ([]byte, error) {
 	tmp.Graph = p.graph
 	tmp.Chain = p.chain
 	if p.Payload != nil {
-		tmp.Payload.Code = p.Payload.code
-		tmp.Payload.Message = p.Payload.message
+		tmp.Payload.Code = p.Payload.Code
+		tmp.Payload.Message = p.Payload.Message
 		tmp.Payload.Context = p.Payload.context
 		tmp.Payload.Command = p.Payload.command
 		tmp.Payload.Result = p.Payload.result
@@ -136,8 +136,8 @@ func (p *ComponentMessage) FromJson(jsonStr []byte) (err error) {
 	p.graph = tmp.Graph
 	p.chain = tmp.Chain
 	p.Payload = &Payload{
-		code:    tmp.Payload.Code,
-		message: tmp.Payload.Message,
+		Code:    tmp.Payload.Code,
+		Message: tmp.Payload.Message,
 		context: tmp.Payload.Context,
 		command: tmp.Payload.Command,
 		result:  tmp.Payload.Result}
@@ -156,6 +156,16 @@ func (p *Payload) UnmarshalResult(v interface{}) error {
 	} else {
 		return json.Unmarshal(dst, v)
 	}
+}
+
+func (p *Payload) getResult() (dst []byte, err error) {
+	if p.result == nil {
+		return nil, fmt.Errorf("result is nil")
+	}
+
+	fmt.Println("'%v'", string(p.result))
+	err = json.Unmarshal(p.result, dst)
+	return
 }
 
 func (p *Payload) SetContext(key string, val interface{}) {
