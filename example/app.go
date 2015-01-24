@@ -1,6 +1,5 @@
 package main
 
-
 import (
 	"flag"
 
@@ -9,8 +8,8 @@ import (
 
 func main() {
 	flag.Parse()
-	
-	casper.BuildAppFromConfig("./casper.conf.example")
+
+	casper.BuildApp("./casper.conf.example")
 
 	casper.GetAppByName("example").Run()
 }

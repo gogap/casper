@@ -3,7 +3,7 @@ package casper
 import (
 	"encoding/json"
 	"fmt"
-	"os"
+	"io/ioutil"
 	"strings"
 
 	log "github.com/golang/glog"
@@ -11,124 +11,102 @@ import (
 
 var apps map[string]*App = make(map[string]*App)
 
+var entrancefactory EntranceFactory = NewDefaultEntranceFactory()
+
 type HttpResponse struct {
 	Code    uint64      `json:"code"`
 	Message string      `json:"message,omitempty"`
 	Result  interface{} `json:"result,omitempty"`
 }
 
-// 服务
 type App struct {
 	Component
-	entrance
+	Entrance
 
-	domain   string
-	addr     string
-	apptype  string
+	name     string
 	graphs   map[string][]string
 	requests map[string]chan *Payload
 }
 
-func BuildAppFromConfigs(filePaths []string) {
+func (p *App) Name() string {
+	return p.name
+}
+
+func BuildApps(filePaths []string) {
 	for _, filePath := range filePaths {
-		BuildAppFromConfig(filePath)
+		BuildApp(filePath)
 	}
 }
 
-func BuildAppFromConfig(filePath string) {
-	var conf struct {
-		Apps []struct {
-			Name        string              `json:"name"`
-			Description string              `json:"description"`
-			Entrace     string              `json:"entrace"`
-			Domain      string              `json:"domain"`
-			Addr        string              `json:"addr"`
-			Intype      string              `json:"in_type"`
-			Inaddr      string              `json:"in_addr"`
-			Graphs      map[string][]string `json:"graphs"`
-		} `json:"apps"`
-		Components []struct {
-			Name        string `json:"name"`
-			Description string `json:"description"`
-			Type        string `json:"type"`
-			In          string `json:"in"`
-		} `json:"components"`
-	}
+type CasperConfigs struct {
+	Apps       []AppConfig       `json:"apps"`
+	Components []ComponentConfig `json:"components"`
+}
 
-	r, err := os.Open(filePath)
-	if err != nil {
-		panic(err)
-	}
-	defer r.Close()
+type EntranceOptions struct {
+	Type    string         `json:"type"`
+	Options EntranceConfig `json:"options"`
+}
 
-	if err = json.NewDecoder(r).Decode(&conf); err != nil {
-		panic(err)
+type AppConfig struct {
+	Name        string              `json:"name"`
+	Description string              `json:"description"`
+	Entrance    EntranceOptions     `json:"entrance"`
+	In          string              `json:"in"`
+	Graphs      map[string][]string `json:"graphs"`
+}
+
+func BuildApp(filePath string) {
+	conf := CasperConfigs{}
+
+	if bConf, e := ioutil.ReadFile(filePath); e != nil {
+		panic(e)
+	} else if e := json.Unmarshal(bConf, &conf); e != nil {
+		panic(e)
 	}
 
 	for _, compConf := range conf.Components {
-		_, err := NewComponent(compConf.Name, compConf.Description, compConf.Type, compConf.In)
-		if err != nil {
-			panic(err)
+		if _, e := NewComponent(compConf); e != nil {
+			panic(e)
 		}
 	}
 
 	for _, appConf := range conf.Apps {
-		_, err := NewApp(appConf.Name,
-			appConf.Description,
-			appConf.Entrace,
-			appConf.Addr,
-			appConf.Intype,
-			appConf.Inaddr,
-			appConf.Domain,
-			appConf.Graphs)
-		if err != nil {
-			panic(err)
+		if _, e := NewApp(appConf); e != nil {
+			panic(e)
 		}
 	}
 }
 
-func NewApp(name, description, apptype, addr, intype, inaddr, domain string, graphs map[string][]string) (app *App, err error) {
-	sname, stype, saddr := strings.TrimSpace(name), strings.TrimSpace(apptype), strings.TrimSpace(addr)
-	sintype, sinaddr := strings.TrimSpace(intype), strings.TrimSpace(inaddr)
-	if sname == "" {
-		return nil, fmt.Errorf("App's name empty error")
+func RegisterEntrances(entrances ...Entrance) {
+	for _, entrance := range entrances {
+		entrancefactory.RegisterEntrance(entrance)
 	}
-	if stype == "" {
-		return nil, fmt.Errorf("App's type empty error")
-	}
-	if saddr == "" {
-		return nil, fmt.Errorf("App's addr empty error")
-	}
-	if sintype == "" {
-		return nil, fmt.Errorf("App's intype empty error")
-	}
-	if sinaddr == "" {
-		return nil, fmt.Errorf("App's inaddr empty error")
-	}
+}
 
-	app = &App{
-		Component: Component{
-			Name:        sname,
-			Description: description,
-			in:          EndPoint{Url: sinaddr, MQType: sintype, mq: nil},
-			app:         nil,
-			outs:        make(map[string]*EndPoint),
-			handler:     nil},
-		entrance: nil,
-		domain:   domain,
-		addr:     saddr,
-		apptype:  stype,
-		graphs:   graphs,
+func NewApp(appConf AppConfig) (app *App, err error) {
+	app = &App{Entrance: nil,
+		name:     appConf.Name,
+		graphs:   appConf.Graphs,
 		requests: make(map[string]chan *Payload)}
 
-	app.app = app
-	app.entrance, err = NewEntrance(app.apptype)
-	if err != nil {
-		return
-	}
+	app.Component = Component{
+		Name:        appConf.Name,
+		Description: appConf.Description,
+		in: EndPoint{Url: appConf.In,
+			MQType: appConf.Entrance.Type,
+			mq:     nil},
+		app:     app,
+		outs:    make(map[string]*EndPoint),
+		handler: nil}
+
+	app.Entrance = entrancefactory.NewEntrance(
+		appConf.Entrance.Type,
+		app,
+		appConf.Entrance.Options)
 
 	log.Infoln(app)
-	apps[app.Name] = app
+	apps[app.Name()] = app
 
 	return
 }
@@ -141,8 +119,15 @@ func GetAppByName(name string) *App {
 	return nil
 }
 
+func SetEntranceFactory(factory EntranceFactory) {
+	if factory == nil {
+		panic("could not set a nil EntranceFactory")
+	}
+
+	entrancefactory = factory
+}
+
 func (p *App) Run() {
-	// 验证graph
 	for k, v := range p.graphs {
 		for i := 0; i < len(v); i++ {
 			if v[i] == "self" {
@@ -155,7 +140,7 @@ func (p *App) Run() {
 	}
 
 	p.Component.Run()
-	p.entrance.StartService(p, p.addr)
+	p.Entrance.Run()
 }
 
 func (p *App) GetGraph(name string) []string {
@@ -189,12 +174,12 @@ func (p *App) sendMsg(graphName string, comsg *ComponentMessage) (id string, ch 
 		return "", nil, fmt.Errorf("No such graph named: %s", graphName)
 	}
 
-	comsg.entrance = p.in.Url
+	comsg.entrance = p.Component.in.Url
 
 	// build graph
 	for i := 0; i < len(graph); i++ {
 		if i == 0 && graph[0] == "self" {
-			comsg.graph = append(comsg.graph, p.in.Url)
+			comsg.graph = append(comsg.graph, p.Component.in.Url)
 			continue
 		}
 

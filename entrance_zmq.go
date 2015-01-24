@@ -8,32 +8,58 @@ import (
 	zmq "github.com/pebbe/zmq4"
 )
 
-type zmqEntrance struct {
-	socket *zmq.Socket
+type EntranceZMQ struct {
+	address string
+	app     *App
+	socket  *zmq.Socket
 }
 
 func init() {
-	registerEntrance("zmq", NewZmqEntrance)
+	entrancefactory.RegisterEntrance(new(EntranceZMQ))
 }
 
-func NewZmqEntrance() entrance {
-	return &zmqEntrance{}
+// func NewZmqEntrance() entrance {
+// 	return &EntranceZMQ{}
+// }
+
+func (p *EntranceZMQ) Type() string {
+	return "zmq"
 }
 
-func (p *zmqEntrance) StartService(app *App, addr string) {
+func (p *EntranceZMQ) Init(app *App, configs EntranceConfig) (err error) {
+	if addr, ok := configs.GetConfigString("address"); !ok {
+		err = fmt.Errorf("[Entrance-%s] get config section of %s failed", p.Type(), "address")
+	} else {
+		p.address = addr
+	}
+
+	if app == nil {
+		err = fmt.Errorf("[Entrance-%s] app is nil", p.Type())
+	} else {
+		p.app = app
+	}
+
+	return
+}
+
+func (p *EntranceZMQ) Run() {
 	var err error
+
 	if p.socket, err = zmq.NewSocket(zmq.REP); err != nil {
 		panic(err)
 	}
-	if err = p.socket.Bind(addr); err != nil {
+
+	if err = p.socket.Bind(p.address); err != nil {
 		panic(err)
 	}
-	log.Infoln("zmqEntrance start at:", addr)
 
-	p.zmqEntranceHandler(app)
+	log.Infoln("[Entrance-%s] start at: %s", p.Type(), p.address)
+
+	p.EntranceZMQHandler()
+	return
 }
 
-func (p *zmqEntrance) zmqEntranceHandler(app *App) {
+func (p *EntranceZMQ) EntranceZMQHandler() {
 	for {
 		msg, err := p.socket.RecvMessageBytes(0)
 		if err != nil {
@@ -73,7 +99,7 @@ func (p *zmqEntrance) zmqEntranceHandler(app *App) {
 		}
 
 		// send msg to next
-		id, ch, err := app.sendMsg(apiName, coMsg)
+		id, ch, err := p.app.sendMsg(apiName, coMsg)
 		if err != nil {
 			log.Errorln("sendMsg err:", coMsg.ID, err.Error())
 			p.socket.SendMessage(newPacket([]byte("ERR")))
@@ -85,7 +111,7 @@ func (p *zmqEntrance) zmqEntranceHandler(app *App) {
 			continue
 		}
 		defer close(ch)
-		defer app.delRequest(id)
+		defer p.app.delRequest(id)
 
 		// Wait for response from IN port
 		log.Infoln("Waiting for response: ", apiName, string(msg[1]))
@@ -139,7 +165,7 @@ func zmqSyncCall(endpoint string, request *ComponentMessage) (reply *ComponentMe
 		if !isValidPacket(ip) {
 			return nil, fmt.Errorf("recv not valid message")
 		}
-		
+
 		rst := new(ComponentMessage)
 		rst.FromJson(ip[1])
 		return rst, nil

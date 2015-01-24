@@ -1,7 +1,7 @@
 package casper
 
 import (
-	"fmt"
+	"encoding/json"
 	"time"
 )
 
@@ -16,29 +16,29 @@ const (
 	CMD_SET_SESSION       = "CMD_SET_SESSION"
 )
 
-var entrances map[string]entranceType = make(map[string]entranceType)
+type EntranceConfig map[string]interface{}
 
-// 入口服务的接口
-type entrance interface {
-	StartService(*App, string) // 开始服务
+func (p EntranceConfig) GetConfigString(sectionName string) (value string, ok bool) {
+	if val, exist := p[sectionName]; !exist {
+		return
+	} else if strVal, ok := val.(string); ok {
+		return strVal, true
+	}
+	return
 }
 
-type entranceType func() entrance
-
-func registerEntrance(name string, one entranceType) {
-	if one == nil {
-		panic("Register nil entrance")
+func (p EntranceConfig) FillToObject(v interface{}) (err error) {
+	if data, e := json.Marshal(p); e != nil {
+		err = e
+		return
+	} else {
+		err = json.Unmarshal(data, v)
 	}
-	if _, dup := entrances[name]; dup {
-		panic("Register entrance duplicate for " + name)
-	}
-	entrances[name] = one
+	return
 }
 
-func NewEntrance(typeName string) (entrance, error) {
-	if newFun, ok := entrances[typeName]; ok {
-		return newFun(), nil
-	}
-
-	return nil, fmt.Errorf("No entrance types " + typeName)
+type Entrance interface {
+	Type() string
+	Init(app *App, configs EntranceConfig) error
+	Run()
 }

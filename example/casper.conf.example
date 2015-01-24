@@ -2,24 +2,38 @@
     "apps": [{
         "name": "example",
         "description": "this is http service",
-        "entrace": "martini",
-	"domain": "example.com",
-        "addr": "127.0.0.1:8088",
-        "in_type": "zmq",
-        "in_addr": "tcp://127.0.0.1:5000",
+        "in": "tcp://127.0.0.1:5000",
+        "entrance": {
+            "type": "martini",
+            "options": {
+                "host": "127.0.0.1",
+                "port": 8080,
+                "domain": "example.com",
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "http://example.com",
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Allow-Methods": "POST",
+                    "Access-Control-Allow-Headers": "X-API, Origin, X-Requested-With, Content-Type, Accept",
+                    "P3P": "CP=\"CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR\""
+                }
+            }
+        },
         "graphs": {
             "user.info.get": ["com1", "com2", "com3"],
             "user.info.save": ["com2", "com3", "com1"],
             "demo": ["com1"],
             "handle_rotato": ["com4"]
         }
-    },{
+    }, {
         "name": "syncService",
         "description": "这是一个用zmq通信的服务",
-        "entrace": "zmq",
-        "addr": "tcp://127.0.0.1:5555",
-        "in_type": "zmq",
-        "in_addr": "tcp://127.0.0.1:5000",
+        "entrance": {
+            "type": "zmq",
+            "options":{
+                "address": "tcp://127.0.0.1:5555"
+            }
+        },
         "graphs": {
             "demo": ["self"]
         }
@@ -27,22 +41,22 @@
     "components": [{
         "name": "com1",
         "description": "this is com1",
-        "type": "zmq",
+        "mq_type": "zmq",
         "in": "tcp://127.0.0.1:5001"
     }, {
         "name": "com2",
         "description": "this is com2",
-        "type": "zmq",
+        "mq_type": "zmq",
         "in": "tcp://127.0.0.1:5002"
     }, {
         "name": "com3",
         "description": "this is com3",
-        "type": "zmq",
+        "mq_type": "zmq",
         "in": "tcp://127.0.0.1:5003"
     }, {
         "name": "com4",
         "description": "this is com4",
-        "type": "zmq",
+        "mq_type": "zmq",
         "in": "tcp://127.0.0.1:5004"
     }]
 }

@@ -36,14 +36,16 @@ type Component struct {
 type ComponentHandler func(*Payload) (result interface{}, err error)
 type ComponentHandlers map[string]ComponentHandler
 
-func BuildComFromConfig(fileName string) {
+type ComponentConfig struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	MQType      string `json:"mq_type"`
+	In          string `json:"in"`
+}
+
+func BuildComponent(fileName string) {
 	var conf struct {
-		Components []struct {
-			Name        string `json:"name"`
-			Description string `json:"description"`
-			Type        string `json:"type"`
-			In          string `json:"in"`
-		} `json:"components"`
+		Components []ComponentConfig `json:"components"`
 	}
 
 	r, err := os.Open(fileName)
@@ -56,36 +58,26 @@ func BuildComFromConfig(fileName string) {
 		panic(err)
 	}
 
-	for i := 0; i < len(conf.Components); i++ {
-		_, err := NewComponent(conf.Components[i].Name, conf.Components[i].Description, conf.Components[i].Type, conf.Components[i].In)
-		if err != nil {
+	for _, compConf := range conf.Components {
+		if _, err := NewComponent(compConf); err != nil {
 			panic(err)
 		}
 	}
+
 }
 
-func NewComponent(name, description, mqtype, in string) (*Component, error) {
-	sname, smqtype, sin := strings.TrimSpace(name), strings.TrimSpace(mqtype), strings.TrimSpace(in)
-	if sname == "" {
-		return nil, fmt.Errorf("Component's name empty ERROR")
-	}
-	if sin == "" {
-		return nil, fmt.Errorf("Component's addr empty ERROR")
-	}
-	if smqtype == "" {
-		return nil, fmt.Errorf("Component's mq typpe empty ERROR")
-	}
-
+func NewComponent(conf ComponentConfig) (component *Component, err error) {
 	com := &Component{
-		Name:        sname,
-		Description: description,
-		in:          EndPoint{Url: sin, MQType: smqtype, mq: nil},
-		app:         nil,
-		outs:        make(map[string]*EndPoint),
-		handler:     nil}
-
+		Name:        conf.Name,
+		Description: conf.Description,
+		in: EndPoint{
+			Url:    conf.In,
+			MQType: conf.MQType,
+			mq:     nil},
+		app:     nil,
+		outs:    make(map[string]*EndPoint),
+		handler: nil}
 	components[com.Name] = com
-
 	return com, nil
 }
 
@@ -129,7 +121,7 @@ func (p *Component) GetOutPoint(url string) *EndPoint {
 }
 
 func (p *Component) Run() (err error) {
-	log.Infoln("Component Run...", p.Name)
+	log.Infof("Component Running..... Name:%s, In:%s\n", p.Name, p.in.Url)
 
 	// 创建MQ
 	p.in.mq, err = NewMq(p.in.MQType, p.in.Url)
