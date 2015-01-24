@@ -26,6 +26,13 @@ func registerMq(name string, one mqType) {
 }
 
 func NewMq(typeName string, url string) (mq, error) {
+	if typeName == "" {
+		return nil, fmt.Errorf("mq's type nil")
+	}
+	if url == "" {
+		return nil, fmt.Errorf("mq's url nil")
+	}
+
 	if newFun, ok := mqs[typeName]; ok {
 		return newFun(url), nil
 	}

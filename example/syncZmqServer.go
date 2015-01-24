@@ -17,6 +17,13 @@ func main() {
 }
 
 func handler(msg *casper.Payload) (result interface{}, err error) {
-	str := "this is syncService self"
-	return &str, nil
+
+	rst := &struct {
+		Name string
+		Age int
+	}{
+		Name: "小明",
+		Age: 6}
+	
+	return rst, nil
 }

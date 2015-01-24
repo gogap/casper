@@ -120,7 +120,7 @@ func (p *Component) GetOutPoint(url string) *EndPoint {
 }
 
 func (p *Component) Run() (err error) {
-	log.Infof("Component Running..... Name:%s, In:%s\n", p.Name, p.in.Url)
+	log.Infof("[Component-%s] Run at:%s\n", p.Name, p.in.Url)
 
 	// 创建MQ
 	p.in.mq, err = NewMq(p.in.MQType, p.in.Url)

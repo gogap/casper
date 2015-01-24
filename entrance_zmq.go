@@ -42,21 +42,21 @@ func (p *EntranceZMQ) Init(app *App, configs EntranceConfig) (err error) {
 	return
 }
 
-func (p *EntranceZMQ) Run() {
+func (p *EntranceZMQ) Run() error {
 	var err error
 
 	if p.socket, err = zmq.NewSocket(zmq.REP); err != nil {
-		panic(err)
+		return err
 	}
 
 	if err = p.socket.Bind(p.address); err != nil {
-		panic(err)
+		return err
 	}
 
 	log.Infof("[Entrance-%s] start at: %s", p.Type(), p.address)
-
 	p.EntranceZMQHandler()
-	return
+
+	return nil
 }
 
 func (p *EntranceZMQ) EntranceZMQHandler() {

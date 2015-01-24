@@ -36,6 +36,7 @@ type AppConfig struct {
 	Name        string              `json:"name"`
 	Description string              `json:"description"`
 	In          string              `json:"in"`
+	InType      string              `json:"in_type"`
 	Entrance    EntranceOptions     `json:"entrance"`
 	Graphs      map[string][]string `json:"graphs"`
 }
@@ -70,23 +71,22 @@ func BuildApp(filePath string) {
 
 func NewApp(appConf AppConfig) (app *App, err error) {
 	app = &App{
-		Name:        appConf.Name,
-		Description: appConf.Description,
-		in:          EndPoint{Url: appConf.In, MQType: appConf.Entrance.Type, mq: nil},
-		app:         app,
-		outs:        make(map[string]*EndPoint),
-		handler:     nil,
-		graphs:      appConf.Graphs,
-		requests:    make(map[string]chan *Payload)}
+		Component: Component{
+			Name:        appConf.Name,
+			Description: appConf.Description,
+			in:          EndPoint{Url: appConf.In, MQType: appConf.InType, mq: nil},
+			app:         nil,
+			outs:        make(map[string]*EndPoint),
+			handler:     nil},
+		Entrance: nil,
+		graphs:   appConf.Graphs,
+		requests: make(map[string]chan *Payload)}
 
-	app.Entrance = entrancefactory.NewEntrance(
-		appConf.Entrance.Type,
-		app,
-		appConf.Entrance.Options)
+	app.app = app
+	app.Entrance = entrancefactory.NewEntrance(appConf.Entrance.Type, app, appConf.Entrance.Options)
 
-	log.Infoln(app)
-	apps[app.Name()] = app
-
+	apps[app.Name] = app
+	log.Infoln("NewApp:", app)
 	return
 }
 
@@ -124,8 +124,12 @@ func (p *App) Run() {
 		}
 	}
 
-	p.Component.Run()
-	p.Entrance.Run()
+	if err := p.Component.Run(); err != nil {
+		panic(err)
+	}
+	if err := p.Entrance.Run(); err != nil {
+		panic(err)
+	}
 }
 
 func (p *App) GetGraph(name string) []string {

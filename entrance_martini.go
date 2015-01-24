@@ -52,16 +52,16 @@ func (p *EntranceMartini) Init(app *App, configs EntranceConfig) (err error) {
 	return
 }
 
-func (p *EntranceMartini) Run() {
+func (p *EntranceMartini) Run() error {
 	p.martini = martini.Classic()
-	p.martini.Post("/"+p.app.Name(), p.martiniHandle())
-	p.martini.Options("/"+p.app.Name(), martiniOptionsHandle)
+	p.martini.Post("/"+p.app.Name, p.martiniHandle())
+	p.martini.Options("/"+p.app.Name, martiniOptionsHandle)
 
 	listenAddr := p.config.GetListenAddress()
 	log.Infof("[Entrance-%s] start at: %s\n", p.Type(), listenAddr)
 	p.martini.RunOnAddr(listenAddr)
 
-	return
+	return nil
 }
 
 func martiniOptionsHandle(w http.ResponseWriter, r *http.Request) {
@@ -162,6 +162,7 @@ func (p *EntranceMartini) martiniHandle() func(http.ResponseWriter, *http.Reques
 			w.Header().Set(key, value)
 		}
 
+		fmt.Println(load.result)
 		resp := fmt.Sprintf("{\n\"code\":%v,\n\"message\":\"%v\",\n\"result\":%v\n}", load.Code, load.Message, string(load.result))
 		log.Infoln("Data arrived. Responding to HTTP response...", resp)
 		w.Write([]byte(resp))

@@ -16,6 +16,13 @@ const (
 	CMD_SET_SESSION       = "CMD_SET_SESSION"
 )
 
+
+type Entrance interface {
+	Type() string
+	Init(app *App, configs EntranceConfig) error
+	Run() error
+}
+
 type EntranceConfig map[string]interface{}
 
 type EntranceOptions struct {
@@ -40,10 +47,4 @@ func (p EntranceConfig) FillToObject(v interface{}) (err error) {
 		err = json.Unmarshal(data, v)
 	}
 	return
-}
-
-type Entrance interface {
-	Type() string
-	Init(app *App, configs EntranceConfig) error
-	Run()
 }
