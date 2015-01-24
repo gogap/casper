@@ -1,7 +1,7 @@
 {
     "apps": [{
         "name": "example",
-        "description": "this is http service",
+        "description": "这是一个HTTP服务",
         "in": "tcp://127.0.0.1:5000",
         "entrance": {
             "type": "martini",
@@ -27,7 +27,7 @@
         }
     }, {
         "name": "syncService",
-        "description": "这是一个用zmq通信的服务",
+        "description": "这是一个zmq服务",
         "entrance": {
             "type": "zmq",
             "options":{

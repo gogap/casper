@@ -53,7 +53,7 @@ func (p *EntranceZMQ) Run() {
 		panic(err)
 	}
 
-	log.Infoln("[Entrance-%s] start at: %s", p.Type(), p.address)
+	log.Infof("[Entrance-%s] start at: %s", p.Type(), p.address)
 
 	p.EntranceZMQHandler()
 	return
@@ -131,6 +131,13 @@ func (p *EntranceZMQ) EntranceZMQHandler() {
 }
 
 func zmqSyncCall(endpoint string, request *ComponentMessage) (reply *ComponentMessage, err error) {
+	if endpoint == "" {
+		return nil, fmt.Errorf("endpoint is nil")
+	}
+	if request == nil {
+		return nil, fmt.Errorf("request is nil")
+	}
+
 	client, err := zmq.NewSocket(zmq.REQ)
 	if err != nil {
 		return nil, err

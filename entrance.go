@@ -18,6 +18,11 @@ const (
 
 type EntranceConfig map[string]interface{}
 
+type EntranceOptions struct {
+	Type    string         `json:"type"`
+	Options EntranceConfig `json:"options"`
+}
+
 func (p EntranceConfig) GetConfigString(sectionName string) (value string, ok bool) {
 	if val, exist := p[sectionName]; !exist {
 		return

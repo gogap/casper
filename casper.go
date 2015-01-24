@@ -23,19 +23,8 @@ type App struct {
 	Component
 	Entrance
 
-	name     string
 	graphs   map[string][]string
 	requests map[string]chan *Payload
-}
-
-func (p *App) Name() string {
-	return p.name
-}
-
-func BuildApps(filePaths []string) {
-	for _, filePath := range filePaths {
-		BuildApp(filePath)
-	}
 }
 
 type CasperConfigs struct {
@@ -43,17 +32,18 @@ type CasperConfigs struct {
 	Components []ComponentConfig `json:"components"`
 }
 
-type EntranceOptions struct {
-	Type    string         `json:"type"`
-	Options EntranceConfig `json:"options"`
-}
-
 type AppConfig struct {
 	Name        string              `json:"name"`
 	Description string              `json:"description"`
-	Entrance    EntranceOptions     `json:"entrance"`
 	In          string              `json:"in"`
+	Entrance    EntranceOptions     `json:"entrance"`
 	Graphs      map[string][]string `json:"graphs"`
+}
+
+func BuildApps(filePaths []string) {
+	for _, filePath := range filePaths {
+		BuildApp(filePath)
+	}
 }
 
 func BuildApp(filePath string) {
@@ -78,27 +68,16 @@ func BuildApp(filePath string) {
 	}
 }
 
-func RegisterEntrances(entrances ...Entrance) {
-	for _, entrance := range entrances {
-		entrancefactory.RegisterEntrance(entrance)
-	}
-}
-
 func NewApp(appConf AppConfig) (app *App, err error) {
-	app = &App{Entrance: nil,
-		name:     appConf.Name,
-		graphs:   appConf.Graphs,
-		requests: make(map[string]chan *Payload)}
-
-	app.Component = Component{
+	app = &App{
 		Name:        appConf.Name,
 		Description: appConf.Description,
-		in: EndPoint{Url: appConf.In,
-			MQType: appConf.Entrance.Type,
-			mq:     nil},
-		app:     app,
-		outs:    make(map[string]*EndPoint),
-		handler: nil}
+		in:          EndPoint{Url: appConf.In, MQType: appConf.Entrance.Type, mq: nil},
+		app:         app,
+		outs:        make(map[string]*EndPoint),
+		handler:     nil,
+		graphs:      appConf.Graphs,
+		requests:    make(map[string]chan *Payload)}
 
 	app.Entrance = entrancefactory.NewEntrance(
 		appConf.Entrance.Type,
@@ -117,6 +96,12 @@ func GetAppByName(name string) *App {
 	}
 
 	return nil
+}
+
+func RegisterEntrances(entrances ...Entrance) {
+	for _, entrance := range entrances {
+		entrancefactory.RegisterEntrance(entrance)
+	}
 }
 
 func SetEntranceFactory(factory EntranceFactory) {

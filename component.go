@@ -70,14 +70,13 @@ func NewComponent(conf ComponentConfig) (component *Component, err error) {
 	com := &Component{
 		Name:        conf.Name,
 		Description: conf.Description,
-		in: EndPoint{
-			Url:    conf.In,
-			MQType: conf.MQType,
-			mq:     nil},
-		app:     nil,
-		outs:    make(map[string]*EndPoint),
-		handler: nil}
+		in:          EndPoint{Url: conf.In, MQType: conf.MQType, mq: nil},
+		app:         nil,
+		outs:        make(map[string]*EndPoint),
+		handler:     nil}
 	components[com.Name] = com
+
+	log.Infoln(com)
 	return com, nil
 }
 

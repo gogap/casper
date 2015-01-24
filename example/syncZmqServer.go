@@ -9,7 +9,7 @@ import (
 func main() {
 	flag.Parse()
 
-	casper.BuildAppFromConfigFile("./casper.conf.example")
+	casper.BuildApp("./casper.conf.example")
 
 	com := casper.GetAppByName("syncService")
 	com.SetHandler(handler)
