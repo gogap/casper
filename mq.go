@@ -7,13 +7,13 @@ import (
 var mqs map[string]mqType = make(map[string]mqType)
 
 // 消息接口
-type mq interface {
+type MessageQueue interface {
 	Ready() error                   // 初始化
 	RecvMessage() ([]byte, error)   // 读一条消息
 	SendToNext([]byte) (int, error) // 发送一条消息到下一节点
 }
 
-type mqType func(string) mq
+type mqType func(string) MessageQueue
 
 func registerMq(name string, one mqType) {
 	if one == nil {
@@ -25,17 +25,21 @@ func registerMq(name string, one mqType) {
 	mqs[name] = one
 }
 
-func NewMq(typeName string, url string) (mq, error) {
-	if typeName == "" {
-		return nil, fmt.Errorf("mq's type nil")
-	}
-	if url == "" {
-		return nil, fmt.Errorf("mq's url nil")
+func NewMQ(compMeta *ComponentMetadata) (MessageQueue, error) {
+	if compMeta == nil {
+		return nil, fmt.Errorf("MessageQueue's metadata is nil")
 	}
 
-	if newFun, ok := mqs[typeName]; ok {
-		return newFun(url), nil
+	if compMeta.MQType == "" {
+		return nil, fmt.Errorf("MessageQueue's type nil")
+	}
+	if compMeta.In == "" {
+		return nil, fmt.Errorf("MessageQueue's in nil")
 	}
 
-	return nil, fmt.Errorf("no mq types " + typeName)
+	if newFun, ok := mqs[compMeta.MQType]; ok {
+		return newFun(compMeta.In), nil
+	}
+
+	return nil, fmt.Errorf("no MessageQueue types " + compMeta.MQType)
 }

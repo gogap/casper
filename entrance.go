@@ -16,10 +16,9 @@ const (
 	CMD_SET_SESSION       = "CMD_SET_SESSION"
 )
 
-
 type Entrance interface {
 	Type() string
-	Init(app *App, configs EntranceConfig) error
+	Init(messenger Messenger, configs EntranceConfig) error
 	Run() error
 }
 

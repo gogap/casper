@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"strings"
 
 	"github.com/gogap/casper/utils"
 	uuid "github.com/nu7hatch/gouuid"
@@ -19,12 +18,18 @@ type callChain struct {
 	Endpoint      string
 }
 
+type ComponentMetadata struct {
+	Name   string `json:"name"`
+	MQType string `json:"mq_type"`
+	In     string `json:"in"`
+}
+
 type ComponentMessage struct {
-	ID       string   `json:"id"`
-	entrance string   `json:"entrance"`
-	graph    []string `json:"graph"`
-	chain    []string `json:"chain"`
-	Payload  *Payload `json:"payload"`
+	Id       string               `json:"id"`
+	entrance *ComponentMetadata   `json:"entrance"`
+	graph    []*ComponentMetadata `json:"graph"`
+	chain    []string             `json:"chain"`
+	Payload  *Payload             `json:"payload"`
 }
 
 type Payload struct {
@@ -35,18 +40,18 @@ type Payload struct {
 	result  []byte            `json:"result,omitempty"`
 }
 
-func NewComponentMessage(entrance string, result interface{}) (msg *ComponentMessage, err error) {
-	msgID := ""
+func NewComponentMessage(entrance *ComponentMetadata, result interface{}) (msg *ComponentMessage, err error) {
+	msgId := ""
 	if u, e := uuid.NewV4(); e != nil {
 		err = e
 		return
 	} else {
-		msgID = u.String()
+		msgId = u.String()
 	}
 
 	msg = &ComponentMessage{
-		ID:       msgID,
-		entrance: strings.TrimSpace(entrance),
+		Id:       msgId,
+		entrance: entrance,
 		graph:    nil,
 		chain:    nil,
 		Payload: &Payload{
@@ -60,19 +65,19 @@ func NewComponentMessage(entrance string, result interface{}) (msg *ComponentMes
 
 }
 
-func (p *ComponentMessage) SetEntrance(entrance string) {
-	p.entrance = entrance
+func (p *ComponentMessage) SetEntrance(entrance ComponentMetadata) {
+	p.entrance = &entrance
 }
 
-func (p *ComponentMessage) TopGraph() string {
+func (p *ComponentMessage) TopGraph() *ComponentMetadata {
 	if len(p.graph) >= 1 {
 		return p.graph[0]
 	}
 
-	return ""
+	return nil
 }
 
-func (p *ComponentMessage) PopGraph() string {
+func (p *ComponentMessage) PopGraph() *ComponentMetadata {
 	if len(p.graph) >= 1 {
 		p.graph = p.graph[1:]
 	}
@@ -80,15 +85,15 @@ func (p *ComponentMessage) PopGraph() string {
 		return p.graph[0]
 	}
 
-	return ""
+	return nil
 }
 
 func (p *ComponentMessage) Serialize() ([]byte, error) {
 	type Msg struct {
-		ID       string   `json:"id"`
-		Entrance string   `json:"entrance"`
-		Graph    []string `json:"graph"`
-		Chain    []string `json:"chain"`
+		Id       string               `json:"id"`
+		Entrance *ComponentMetadata   `json:"entrance"`
+		Graph    []*ComponentMetadata `json:"graph"`
+		Chain    []string             `json:"chain"`
 		Payload  struct {
 			Code    uint64            `json:"code"`
 			Message string            `json:"message"`
@@ -99,7 +104,7 @@ func (p *ComponentMessage) Serialize() ([]byte, error) {
 	}
 
 	tmp := &Msg{}
-	tmp.ID = p.ID
+	tmp.Id = p.Id
 	tmp.Entrance = p.entrance
 	tmp.Graph = p.graph
 	tmp.Chain = p.chain
@@ -116,10 +121,10 @@ func (p *ComponentMessage) Serialize() ([]byte, error) {
 
 func (p *ComponentMessage) FromJson(jsonStr []byte) (err error) {
 	var tmp struct {
-		ID       string   `json:"id"`
-		Entrance string   `json:"entrance"`
-		Graph    []string `json:"graph"`
-		Chain    []string `json:"chain"`
+		Id       string               `json:"id"`
+		Entrance *ComponentMetadata   `json:"entrance"`
+		Graph    []*ComponentMetadata `json:"graph"`
+		Chain    []string             `json:"chain"`
 		Payload  struct {
 			Code    uint64            `json:"code"`
 			Message string            `json:"message"`
@@ -133,7 +138,7 @@ func (p *ComponentMessage) FromJson(jsonStr []byte) (err error) {
 		return err
 	}
 
-	p.ID = tmp.ID
+	p.Id = tmp.Id
 	p.entrance = tmp.Entrance
 	p.graph = tmp.Graph
 	p.chain = tmp.Chain
@@ -514,7 +519,6 @@ func (p *Payload) GetCommandObject(key string, v interface{}) (err error) {
 		}
 
 		if e := json.Unmarshal(bJson, v); e != nil {
-			fmt.Println(e)
 			err = fmt.Errorf("unmarshal json to object %s failed, error is:%v", key, e)
 			return
 		}

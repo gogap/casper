@@ -7,7 +7,7 @@ import (
 
 type EntranceFactory interface {
 	RegisterEntrance(entrance Entrance)
-	NewEntrance(typ string, app *App, configs EntranceConfig) Entrance
+	NewEntrance(messengerr Messenger, typ string, configs EntranceConfig) Entrance
 }
 
 type DefaultEntranceFactory struct {
@@ -38,14 +38,14 @@ func (p *DefaultEntranceFactory) RegisterEntrance(entrance Entrance) {
 	return
 }
 
-func (p *DefaultEntranceFactory) NewEntrance(typ string, app *App, configs EntranceConfig) Entrance {
+func (p *DefaultEntranceFactory) NewEntrance(messengerr Messenger, typ string, configs EntranceConfig) Entrance {
 	if entranceType, exist := p.entrances[typ]; !exist {
 		panic(fmt.Errorf("entrance of %s not exist", typ))
 	} else {
 		if vOfEntrance := reflect.New(entranceType); vOfEntrance.CanInterface() {
 			iEntrance := vOfEntrance.Interface()
 			if entrance, ok := iEntrance.(Entrance); ok {
-				entrance.Init(app, configs)
+				entrance.Init(messengerr, configs)
 				return entrance
 			} else {
 				panic(fmt.Errorf("convert value to interface{} of Entrance failed, entrance type is: %s", typ))

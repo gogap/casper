@@ -15,6 +15,7 @@ type EntranceMartiniConf struct {
 	Host          string
 	Port          int32
 	Domain        string
+	Path          string
 	Headers       map[string]string
 	IsEnableHttps bool
 }
@@ -24,9 +25,9 @@ func (p *EntranceMartiniConf) GetListenAddress() string {
 }
 
 type EntranceMartini struct {
-	app     *App
-	config  EntranceMartiniConf
-	martini *martini.ClassicMartini
+	config    EntranceMartiniConf
+	martini   *martini.ClassicMartini
+	messenger Messenger
 }
 
 func init() {
@@ -37,25 +38,25 @@ func (p *EntranceMartini) Type() string {
 	return "martini"
 }
 
-func (p *EntranceMartini) Init(app *App, configs EntranceConfig) (err error) {
+func (p *EntranceMartini) Init(messenger Messenger, configs EntranceConfig) (err error) {
 	if e := configs.FillToObject(&p.config); e != nil {
 		err = fmt.Errorf("[Entrance-%s] fill config failed", p.Type())
 		return
 	}
 
-	if app == nil {
-		err = fmt.Errorf("[Entrance-%s] app is nil", p.Type())
+	if messenger == nil {
+		err = fmt.Errorf("[Entrance-%s] Messenger is nil", p.Type())
 		return
 	} else {
-		p.app = app
+		p.messenger = messenger
 	}
 	return
 }
 
 func (p *EntranceMartini) Run() error {
 	p.martini = martini.Classic()
-	p.martini.Post("/"+p.app.Name, p.martiniHandle())
-	p.martini.Options("/"+p.app.Name, martiniOptionsHandle)
+	p.martini.Post(p.config.Path, p.martiniHandle())
+	p.martini.Options(p.config.Path, martiniOptionsHandle)
 
 	listenAddr := p.config.GetListenAddress()
 	log.Infof("[Entrance-%s] start at: %s\n", p.Type(), listenAddr)
@@ -85,12 +86,12 @@ func (p *EntranceMartini) martiniHandle() func(http.ResponseWriter, *http.Reques
 
 		reqBody, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			log.Errorln("request body err:", p.app.Name, err.Error())
+			log.Errorln("request body err:", p.config.Path, err.Error())
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Read request body error"))
 			return
 		}
-		log.Infoln("httpRequest:", p.app.Name, string(reqBody))
+		log.Infoln("httpRequest:", p.config.Path, string(reqBody))
 
 		// cookie
 		sessionids := ""
@@ -109,27 +110,27 @@ func (p *EntranceMartini) martiniHandle() func(http.ResponseWriter, *http.Reques
 		}
 
 		// Componet message
-		coMsg, _ := NewComponentMessage("", reqBody)
-		coMsg.Payload.SetContext(REQ_X_API, apiName)
-		coMsg.Payload.SetContext(SESSION_KEY, sessionids) // 会话ID
-		coMsg.Payload.SetContext(USER_KEY, userids)
+		comMsg, _ := NewComponentMessage(nil, reqBody)
+		comMsg.Payload.SetContext(REQ_X_API, apiName)
+		comMsg.Payload.SetContext(SESSION_KEY, sessionids) // 会话ID
+		comMsg.Payload.SetContext(USER_KEY, userids)
 
 		// send msg to next
-		id, ch, err := p.app.sendMsg(apiName, coMsg)
+		id, ch, err := p.messenger.SendMessage(apiName, comMsg)
 		if err != nil {
-			log.Errorln("sendMsg err:", coMsg.ID, err.Error())
+			log.Errorln("sendMsg err:", comMsg.Id, err.Error())
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte(err.Error()))
 			return
 		}
 		if ch == nil {
-			log.Errorln("sendMsg return nil:", coMsg.ID)
+			log.Errorln("sendMsg return nil:", comMsg.Id)
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("Service Internal Error"))
 			return
 		}
 		defer close(ch)
-		defer p.app.delRequest(id)
+		defer p.messenger.OnMessageEvent(id, MSG_EVENT_PROCESSED)
 
 		// Wait for response from IN port
 		log.Infoln("Waiting for response: ", apiName, string(reqBody))
@@ -162,7 +163,6 @@ func (p *EntranceMartini) martiniHandle() func(http.ResponseWriter, *http.Reques
 			w.Header().Set(key, value)
 		}
 
-		fmt.Println(load.result)
 		resp := fmt.Sprintf("{\n\"code\":%v,\n\"message\":\"%v\",\n\"result\":%v\n}", load.Code, load.Message, string(load.result))
 		log.Infoln("Data arrived. Responding to HTTP response...", resp)
 		w.Write([]byte(resp))

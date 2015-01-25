@@ -9,9 +9,10 @@ import (
 )
 
 type EntranceZMQ struct {
-	address string
-	app     *App
-	socket  *zmq.Socket
+	address   string
+	app       *App
+	socket    *zmq.Socket
+	messenger Messenger
 }
 
 func init() {
@@ -26,17 +27,18 @@ func (p *EntranceZMQ) Type() string {
 	return "zmq"
 }
 
-func (p *EntranceZMQ) Init(app *App, configs EntranceConfig) (err error) {
+func (p *EntranceZMQ) Init(messenger Messenger, configs EntranceConfig) (err error) {
 	if addr, ok := configs.GetConfigString("address"); !ok {
 		err = fmt.Errorf("[Entrance-%s] get config section of %s failed", p.Type(), "address")
 	} else {
 		p.address = addr
 	}
 
-	if app == nil {
-		err = fmt.Errorf("[Entrance-%s] app is nil", p.Type())
+	if messenger == nil {
+		err = fmt.Errorf("[Entrance-%s] Messenger is nil", p.Type())
+		return
 	} else {
-		p.app = app
+		p.messenger = messenger
 	}
 
 	return
@@ -76,17 +78,17 @@ func (p *EntranceZMQ) EntranceZMQHandler() {
 
 		log.Infoln("recvMessage:", string(msg[1]))
 
-		coMsg, _ := NewComponentMessage("", nil)
-		err = coMsg.FromJson(msg[1])
+		comMsg, _ := NewComponentMessage(nil, nil)
+		err = comMsg.FromJson(msg[1])
 		if err != nil {
 			log.Errorln("RecvMessage message fmt error.")
 			p.socket.SendMessage(newPacket([]byte("ERR")))
 			continue
 		}
 
-		log.Infoln("recvComsg:", coMsg)
+		log.Infoln("recvComsg:", comMsg)
 
-		apiName, err := coMsg.Payload.GetContextString(REQ_X_API)
+		apiName, err := comMsg.Payload.GetContextString(REQ_X_API)
 		if err != nil {
 			log.Errorln("Get message's X-API error.", err.Error())
 			p.socket.SendMessage(newPacket([]byte("ERR")))
@@ -99,19 +101,19 @@ func (p *EntranceZMQ) EntranceZMQHandler() {
 		}
 
 		// send msg to next
-		id, ch, err := p.app.sendMsg(apiName, coMsg)
+		id, ch, err := p.messenger.SendMessage(apiName, comMsg)
 		if err != nil {
-			log.Errorln("sendMsg err:", coMsg.ID, err.Error())
+			log.Errorln("sendMsg err:", comMsg.Id, err.Error())
 			p.socket.SendMessage(newPacket([]byte("ERR")))
 			continue
 		}
 		if ch == nil {
-			log.Errorln("sendMsg return nil:", coMsg.ID)
+			log.Errorln("sendMsg return nil:", comMsg.Id)
 			p.socket.SendMessage(newPacket([]byte("ERR")))
 			continue
 		}
 		defer close(ch)
-		defer p.app.delRequest(id)
+		defer p.messenger.OnMessageEvent(id, MSG_EVENT_PROCESSED)
 
 		// Wait for response from IN port
 		log.Infoln("Waiting for response: ", apiName, string(msg[1]))
@@ -124,8 +126,8 @@ func (p *EntranceZMQ) EntranceZMQHandler() {
 			return
 		}
 
-		coMsg.Payload = load
-		rst, _ := coMsg.Serialize()
+		comMsg.Payload = load
+		rst, _ := comMsg.Serialize()
 		p.socket.SendMessage(newPacket(rst))
 	}
 }

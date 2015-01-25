@@ -2,14 +2,15 @@
     "apps": [{
         "name": "example",
         "description": "这是一个HTTP服务",
-        "in_type": "zmq",	
-	"in": "tcp://127.0.0.1:5000",
+        "mq_type": "zmq",
+        "in": "tcp://127.0.0.1:5000",
         "entrance": {
             "type": "martini",
             "options": {
                 "host": "127.0.0.1",
                 "port": 8080,
                 "domain": "example.com",
+                "path":"/example",
                 "headers": {
                     "Content-Type": "application/json",
                     "Access-Control-Allow-Origin": "http://example.com",
@@ -29,11 +30,11 @@
     }, {
         "name": "syncService",
         "description": "这是一个zmq服务",
-        "in_type": "zmq",
-	"in":"tcp://127.0.0.1:6000",	
+        "mq_type": "zmq",
+        "in": "tcp://127.0.0.1:6000",
         "entrance": {
             "type": "zmq",
-            "options":{
+            "options": {
                 "address": "tcp://127.0.0.1:5555"
             }
         },

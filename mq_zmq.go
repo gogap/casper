@@ -17,7 +17,7 @@ func init() {
 	registerMq("zmq", NewMqZmq)
 }
 
-func NewMqZmq(url string) mq {
+func NewMqZmq(url string) MessageQueue {
 	return &mqZmq{url: url, socket: nil}
 }
 
@@ -38,7 +38,7 @@ func (p *mqZmq) RecvMessage() ([]byte, error) {
 	if !isValidPacket(ip) {
 		return nil, fmt.Errorf("Recv invalid message")
 	}
-	
+
 	return ip[1], nil
 }
 

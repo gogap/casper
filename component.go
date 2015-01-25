@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/gogap/errors"
 	log "github.com/golang/glog"
@@ -17,20 +16,33 @@ var components map[string]*Component = make(map[string]*Component)
 
 // 端点
 type EndPoint struct {
-	mq
-	Url    string
-	MQType string
+	MessageQueue
+	ComponentMetadata
 }
 
 // 组件
 type Component struct {
 	Name        string
 	Description string
-	in          EndPoint
-	app         *App // 当这是一个入口组件...
+	endPoint    EndPoint
+	messenger   Messenger
 
-	outs    map[string]*EndPoint
 	handler ComponentHandler
+}
+
+func (p *Component) Metadata() ComponentMetadata {
+	return ComponentMetadata{
+		Name:   p.Name,
+		In:     p.endPoint.In,
+		MQType: p.endPoint.MQType}
+}
+
+func (p *Component) GetComponentConfig() ComponentConfig {
+	return ComponentConfig{
+		Name:        p.Name,
+		Description: p.Description,
+		In:          p.endPoint.In,
+		MQType:      p.endPoint.MQType}
 }
 
 type ComponentHandler func(*Payload) (result interface{}, err error)
@@ -41,6 +53,13 @@ type ComponentConfig struct {
 	Description string `json:"description"`
 	MQType      string `json:"mq_type"`
 	In          string `json:"in"`
+}
+
+func (p *ComponentConfig) Metadata() ComponentMetadata {
+	return ComponentMetadata{
+		Name:   p.Name,
+		In:     p.In,
+		MQType: p.MQType}
 }
 
 func BuildComponent(fileName string) {
@@ -67,13 +86,28 @@ func BuildComponent(fileName string) {
 }
 
 func NewComponent(conf ComponentConfig) (component *Component, err error) {
+	messenger := NewMQChanMessenger(nil, conf.Metadata())
 	com := &Component{
 		Name:        conf.Name,
 		Description: conf.Description,
-		in:          EndPoint{Url: conf.In, MQType: conf.MQType, mq: nil},
-		app:         nil,
-		outs:        make(map[string]*EndPoint),
+		endPoint:    EndPoint{ComponentMetadata: ComponentMetadata{In: conf.In, MQType: conf.MQType}, MessageQueue: nil},
+		messenger:   messenger,
 		handler:     nil}
+
+	components[com.Name] = com
+
+	log.Infoln(com)
+	return com, nil
+}
+
+func NewComponentWithMessenger(conf ComponentConfig, messenger Messenger) (component *Component, err error) {
+	com := &Component{
+		Name:        conf.Name,
+		Description: conf.Description,
+		endPoint:    EndPoint{ComponentMetadata: ComponentMetadata{In: conf.In, MQType: conf.MQType}, MessageQueue: nil},
+		messenger:   messenger,
+		handler:     nil}
+
 	components[com.Name] = com
 
 	log.Infoln(com)
@@ -106,30 +140,17 @@ func (p *Component) SetHandler(handler ComponentHandler) *Component {
 	return p
 }
 
-func (p *Component) GetOutPoint(url string) *EndPoint {
-	surl := strings.TrimSpace(url)
-	if surl == "" {
-		return nil
-	}
-
-	if _, ok := p.outs[surl]; !ok {
-		p.outs[surl] = &EndPoint{Url: surl, MQType: p.in.MQType, mq: nil}
-	}
-
-	return p.outs[surl]
-}
-
 func (p *Component) Run() (err error) {
-	log.Infof("[Component-%s] Run at:%s\n", p.Name, p.in.Url)
+	log.Infof("[Component-%s] Run at:%s\n", p.Name, p.endPoint.In)
 
 	// 创建MQ
-	p.in.mq, err = NewMq(p.in.MQType, p.in.Url)
+	p.endPoint.MessageQueue, err = NewMQ(&p.endPoint.ComponentMetadata)
 	if err != nil {
 		return
 	}
 
 	// MQ 准备
-	err = p.in.mq.Ready()
+	err = p.endPoint.Ready()
 	if err != nil {
 		return
 	}
@@ -142,40 +163,41 @@ func (p *Component) Run() (err error) {
 
 func (p *Component) recvMonitor() {
 	for {
-		msg, err := p.in.mq.RecvMessage()
+		msg, err := p.endPoint.RecvMessage()
 		if err != nil {
 			log.Errorln(p.Name, "Error receiving message:", err.Error())
 			continue
 		}
 		log.Infoln(p.Name, "Recv:", string(msg))
 
-		comsg := new(ComponentMessage)
-		if err := comsg.FromJson(msg); err != nil {
+		comMsg := new(ComponentMessage)
+		if err := comMsg.FromJson(msg); err != nil {
 			log.Errorln(p.Name, "Msg's format error:", err.Error(), string(msg))
 			continue
 		}
 
-		go p.SendMsg(comsg)
+		go p.SendMsg(comMsg)
 	}
 }
 
-func (p *Component) SendMsg(comsg *ComponentMessage) {
+func (p *Component) SendMsg(comMsg *ComponentMessage) {
 	// 就是打日志用的
-	msg, _ := comsg.Serialize()
-	smsg := string(msg)
+	msg, _ := comMsg.Serialize()
+	strMsg := string(msg)
 
 	// 更新调用链
-	comsg.chain = append(comsg.chain, p.in.Url)
+	comMsg.chain = append(comMsg.chain, p.endPoint.In)
 
 	// deal path
-	next := comsg.TopGraph()
-	if next == p.in.Url {
+	next := comMsg.TopGraph()
+
+	if next != nil && (next.In == p.endPoint.In) {
 		// 正常流程
-		next = comsg.PopGraph()
-		if next == "" {
-			log.Warningln("next is nil. send to entrance:", smsg)
-			next = comsg.entrance
-			comsg.graph = nil
+		next = comMsg.PopGraph()
+		if next == nil || next.Name == "" {
+			log.Warningln("next is nil. send to entrance:", strMsg)
+			next = comMsg.entrance
+			comMsg.graph = nil
 		}
 
 		// call worker
@@ -183,29 +205,29 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 		var err error
 		if p.handler != nil {
 			log.Infoln(p.Name, "Call handler")
-			ret, err = p.handler(comsg.Payload)
-			comsg.Payload.result = nil
+			ret, err = p.handler(comMsg.Payload)
+			comMsg.Payload.result = nil
 			if err != nil {
 				// 业务处理错误, 发给入口
-				log.Warningln("worker error, send to entrance:", smsg, err.Error())
+				log.Warningln("worker error, send to entrance:", strMsg, err.Error())
 				if errors.IsErrCode(err) == false {
-					comsg.Payload.Code = 500
-					comsg.Payload.Message = err.Error()
+					comMsg.Payload.Code = 500
+					comMsg.Payload.Message = err.Error()
 				} else {
-					comsg.Payload.Code = err.(errors.ErrCode).Code()
-					comsg.Payload.Message = err.(errors.ErrCode).Error()
+					comMsg.Payload.Code = err.(errors.ErrCode).Code()
+					comMsg.Payload.Message = err.(errors.ErrCode).Error()
 				}
-				next = comsg.entrance
-				comsg.graph = nil
+				next = comMsg.entrance
+				comMsg.graph = nil
 			} else {
 				if ret != nil {
-					err = comsg.Payload.setResult(ret)
+					err = comMsg.Payload.setResult(ret)
 					if err != nil {
 						log.Errorln("work result Marshal:", err.Error(), ret)
-						comsg.Payload.Code = 500
-						comsg.Payload.Message = fmt.Sprintf("%v. %v", p.Name, err.Error())
-						next = comsg.entrance
-						comsg.graph = nil
+						comMsg.Payload.Code = 500
+						comMsg.Payload.Message = fmt.Sprintf("%v. %v", p.Name, err.Error())
+						next = comMsg.entrance
+						comMsg.graph = nil
 					}
 				}
 				log.Infoln(p.Name, "Call handler ok")
@@ -213,54 +235,35 @@ func (p *Component) SendMsg(comsg *ComponentMessage) {
 		}
 
 		// 正常发到下一站
-		log.Infoln("sendToNext:", next, smsg)
-		msg, _ := comsg.Serialize()
-		if _, err = p.sendToNext(next, msg); err != nil {
-			log.Errorf(p.Name, "sendToNext error: ", smsg)
+		log.Infoln("sendToNext:", next, strMsg)
+		msg, _ := comMsg.Serialize()
+		if _, err = p.messenger.SendToComponent(next, msg); err != nil {
+			log.Errorf("SendToComponent %s error, %s", p.Name, err)
 		}
-	} else if next == "" {
+	} else if next == nil || next.In == "" {
 		// 消息流出错了或是已经走到了入口
-		msg, _ := comsg.Serialize()
-		if p.app != nil {
+		msg, _ := comMsg.Serialize()
+		if p.messenger != nil {
 			// 到入口了, 抛给上层
-			log.Infoln(p.Name, "Msg to entrance:", smsg)
-			if err := p.app.recvMsg(comsg); err != nil {
+			log.Infoln(p.Name, "Msg to entrance:", strMsg)
+			if err := p.messenger.ReceiveMessage(comMsg); err != nil {
 				log.Errorln(p.Name, "msg to entrance err:", err.Error())
 			}
 		} else {
 			// 链路错了， 发给入口
-			log.Errorln("msg's next null, send to entrance", smsg)
-			_, err := p.sendToNext(comsg.entrance, msg)
+			log.Errorln("msg's next null, send to entrance", strMsg)
+			_, err := p.messenger.SendToComponent(comMsg.entrance, msg)
 			if err != nil {
-				log.Errorln(p.Name, "msg's next null, send to entrance ERR", smsg)
+				log.Errorln(p.Name, "msg's next null, send to entrance ERR", strMsg)
 			}
 		}
-	} else if next != p.in.Url {
+	} else if next.In != p.endPoint.In {
 		// 发给正确的站点
-		msg, _ := comsg.Serialize()
+		msg, _ := comMsg.Serialize()
 		log.Warningln(p.Name, "msg's real next is:", next)
-		_, err := p.sendToNext(next, msg)
+		_, err := p.messenger.SendToComponent(next, msg)
 		if err != nil {
 			log.Errorln(p.Name, "send to real next ERR: ", string(msg))
 		}
 	}
-}
-
-func (p *Component) sendToNext(url string, msg []byte) (total int, err error) {
-	if url == "" {
-		return 0, fmt.Errorf("sendTo nil url")
-	}
-
-	if _, ok := p.outs[url]; ok == false {
-		mqtmp, err := NewMq(p.in.MQType, url)
-		if err != nil {
-			return 0, err
-		}
-		p.outs[url] = &EndPoint{Url: url, MQType: p.in.MQType, mq: mqtmp}
-	}
-
-	log.Infoln(p.Name, "sendToNext:", url, string(msg))
-	total, err = p.outs[url].mq.SendToNext(msg)
-
-	return
 }
