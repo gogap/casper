@@ -66,12 +66,10 @@ func (p *EntranceMartini) Run() error {
 }
 
 func martiniOptionsHandle(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Access-Control-Allow-Headers", "X-API")
-	w.Header().Set("Access-Control-Allow-Origin", "http://investor.rijin.com")
-	w.Header().Add("Access-Control-Allow-Credentials", "true")
-	w.Header().Add("Access-Control-Allow-Methods", "POST")
-	w.Header().Add("P3P", `CP="CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR"`)
-	w.Header().Add("Access-Control-Allow-Headers", "X-API, X-REQUEST-ID, X-API-TRANSACTION, X-API-TRANSACTION-TIMEOUT, X-RANGE, Origin, X-Requested-With, Content-Type, Accept")
+	//TODO: should split OPTION GET POST's headers
+	for key, value := range p.config.Headers {
+		w.Header().Set(key, value)
+	}
 }
 
 func (p *EntranceMartini) martiniHandle() func(http.ResponseWriter, *http.Request) {
