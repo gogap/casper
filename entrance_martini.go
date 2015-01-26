@@ -161,7 +161,11 @@ func (p *EntranceMartini) martiniHandle() func(http.ResponseWriter, *http.Reques
 			w.Header().Set(key, value)
 		}
 
-		resp := fmt.Sprintf("{\n\"code\":%v,\n\"message\":\"%v\",\n\"result\":%v\n}", load.Code, load.Message, string(load.result))
+		rstStr := string(load.result)
+		if rstStr == "" {
+			rstStr = "NULL"
+		}
+		resp := fmt.Sprintf("{\n\"code\":%v,\n\"message\":\"%v\",\n\"result\":%v\n}", load.Code, load.Message, rstStr)
 		log.Infoln("Data arrived. Responding to HTTP response...", resp)
 		w.Write([]byte(resp))
 	}

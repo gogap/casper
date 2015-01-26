@@ -28,8 +28,7 @@ type MQChanMessenger struct {
 	requests map[string]chan *Payload
 }
 
-func NewMQChanMessenger(graphs Graphs,
-	compMetadata ComponentMetadata) *MQChanMessenger {
+func NewMQChanMessenger(graphs Graphs, compMetadata ComponentMetadata) *MQChanMessenger {
 
 	messenger := new(MQChanMessenger)
 	messenger.graphs = graphs
