@@ -74,7 +74,6 @@ func BuildApp(filePath string) {
 	}
 
 	for _, appConf := range conf.Apps {
-
 		if _, e := NewApp(appConf); e != nil {
 			panic(e)
 		}

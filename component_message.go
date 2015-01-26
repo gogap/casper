@@ -185,6 +185,10 @@ func (p *Payload) setResult(v interface{}) (err error) {
 	return
 }
 
+func (p *Payload) GetResult() []byte {
+	return p.result
+}
+
 func (p *Payload) SetContext(key string, val interface{}) {
 	if p.context == nil {
 		p.context = make(map[string]interface{})

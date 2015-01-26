@@ -25,7 +25,7 @@ func (p *DefaultEntranceFactory) RegisterEntrance(entrance Entrance) {
 		panic("entrance is nil")
 	}
 	if _, exist := p.entrances[entrance.Type()]; exist {
-		panic(fmt.Errorf("entrance of %s already exist", entrance.Type()))
+		panic(fmt.Errorf("entrance of [%s] already exist", entrance.Type()))
 	}
 
 	vof := reflect.ValueOf(entrance)
@@ -40,7 +40,7 @@ func (p *DefaultEntranceFactory) RegisterEntrance(entrance Entrance) {
 
 func (p *DefaultEntranceFactory) NewEntrance(messengerr Messenger, typ string, configs EntranceConfig) Entrance {
 	if entranceType, exist := p.entrances[typ]; !exist {
-		panic(fmt.Errorf("entrance of %s not exist", typ))
+		panic(fmt.Errorf("entrance of [%s] not exist", typ))
 	} else {
 		if vOfEntrance := reflect.New(entranceType); vOfEntrance.CanInterface() {
 			iEntrance := vOfEntrance.Interface()
