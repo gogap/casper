@@ -56,7 +56,7 @@ func (p *EntranceMartini) Init(messenger Messenger, configs EntranceConfig) (err
 func (p *EntranceMartini) Run() error {
 	p.martini = martini.Classic()
 	p.martini.Post(p.config.Path, p.martiniHandle())
-	p.martini.Options(p.config.Path, martiniOptionsHandle)
+	p.martini.Options(p.config.Path, p.martiniOptionsHandle)
 
 	listenAddr := p.config.GetListenAddress()
 	log.Infof("[Entrance-%s] start at: %s\n", p.Type(), listenAddr)
@@ -65,7 +65,7 @@ func (p *EntranceMartini) Run() error {
 	return nil
 }
 
-func martiniOptionsHandle(w http.ResponseWriter, r *http.Request) {
+func (p *EntranceMartini) martiniOptionsHandle(w http.ResponseWriter, r *http.Request) {
 	//TODO: should split OPTION GET POST's headers
 	for key, value := range p.config.Headers {
 		w.Header().Set(key, value)
