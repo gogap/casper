@@ -52,13 +52,6 @@ func (p *AppConfig) ComponentConfig() ComponentConfig {
 		MQType:      p.MQType}
 }
 
-func (p *AppConfig) ComponentMetatdata() ComponentMetadata {
-	return ComponentMetadata{
-		Name:   p.Name,
-		In:     p.In,
-		MQType: p.MQType}
-}
-
 func BuildApps(filePaths []string) {
 	for _, filePath := range filePaths {
 		BuildApp(filePath)
@@ -91,8 +84,9 @@ func BuildApp(filePath string) {
 func NewApp(appConf AppConfig) (app *App, err error) {
 	newApp := &App{}
 
-	compMeta := appConf.ComponentMetatdata()
 	compConf := appConf.ComponentConfig()
+	compMeta := compConf.Metadata()
+
 	appMessenger := NewMQChanMessenger(appConf.Graphs, compMeta)
 	appEntrance := entrancefactory.NewEntrance(appMessenger, appConf.Entrance.Type, appConf.Entrance.Options)
 
