@@ -10,13 +10,10 @@
                 "host": "127.0.0.1",
                 "port": 8080,
                 "domain": "example.com",
-                "path":"/example",
+                "path": "/example",
+                "allow_origin": ["127.0.0.1:8080", "example.com"],
+                "allow_headers": ["X-API", "Origin", "X-Requested-With", "Content-Type", "Accept"],
                 "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Origin": "http://example.com",
-                    "Access-Control-Allow-Credentials": "true",
-                    "Access-Control-Allow-Methods": "POST",
-                    "Access-Control-Allow-Headers": "X-API, Origin, X-Requested-With, Content-Type, Accept",
                     "P3P": "CP=\"CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR\""
                 }
             }

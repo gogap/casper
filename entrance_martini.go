@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-martini/martini"
@@ -12,12 +14,15 @@ import (
 )
 
 type EntranceMartiniConf struct {
-	Host          string
-	Port          int32
-	Domain        string
-	Path          string
-	Headers       map[string]string
-	IsEnableHttps bool
+	Host         string            `json:"host"`
+	Port         int32             `json:"port"`
+	Domain       string            `json:"domain"`
+	Path         string            `json:"path"`
+	AllowOrigin  []string          `json:"allow_origin"`
+	AllowHeaders []string          `json:"allow_headers"`
+	allowHeaders string            `json:"-"`
+	allowOrigin  map[string]bool   `json:"-"`
+	Headers      map[string]string `json:"headers"`
 }
 
 func (p *EntranceMartiniConf) GetListenAddress() string {
@@ -44,6 +49,12 @@ func (p *EntranceMartini) Init(messenger Messenger, configs EntranceConfig) (err
 		return
 	}
 
+	p.config.allowHeaders = strings.Join(p.config.AllowHeaders, ",")
+	p.config.allowOrigin = make(map[string]bool)
+	for _, origin := range p.config.AllowOrigin {
+		p.config.allowOrigin[origin] = true
+	}
+
 	if messenger == nil {
 		err = fmt.Errorf("[Entrance-%s] Messenger is nil", p.Type())
 		return
@@ -65,11 +76,36 @@ func (p *EntranceMartini) Run() error {
 	return nil
 }
 
-func (p *EntranceMartini) martiniOptionsHandle(w http.ResponseWriter, r *http.Request) {
-	//TODO: should split OPTION GET POST's headers
+func (p *EntranceMartini) setBasicHeaders(w http.ResponseWriter, r *http.Request) {
+	refer := r.Referer()
+	if refer == "" {
+		refer = r.Header.Get("Origin")
+	}
+
+	if _, err := url.Parse(refer); err == nil {
+		refProtocol, refDomain := parse_refer(refer)
+		if p.config.allowOrigin["*"] ||
+			p.config.allowOrigin[refDomain] {
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			origin := refProtocol + "://" + refDomain
+			if origin == "://" { //issue of post man, chrome limit.
+				origin = "*"
+			}
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
+	}
+
+	w.Header().Set("Access-Control-Allow-Methods", "POST")
+	w.Header().Set("Access-Control-Allow-Headers", p.config.allowHeaders)
+	w.Header().Set("Content-Type", "application/json")
+
 	for key, value := range p.config.Headers {
 		w.Header().Set(key, value)
 	}
+}
+
+func (p *EntranceMartini) martiniOptionsHandle(w http.ResponseWriter, r *http.Request) {
+	p.setBasicHeaders(w, r)
 }
 
 func (p *EntranceMartini) martiniHandle() func(http.ResponseWriter, *http.Request) {
@@ -157,9 +193,7 @@ func (p *EntranceMartini) martiniHandle() func(http.ResponseWriter, *http.Reques
 
 		http.SetCookie(w, &http.Cookie{Name: SESSION_KEY, Value: sessionids, Domain: p.config.Domain, Path: "/"})
 
-		for key, value := range p.config.Headers {
-			w.Header().Set(key, value)
-		}
+		p.setBasicHeaders(w, r)
 
 		rstStr := string(load.result)
 		if rstStr == "" {
@@ -169,4 +203,22 @@ func (p *EntranceMartini) martiniHandle() func(http.ResponseWriter, *http.Reques
 		log.Infoln("Data arrived. Responding to HTTP response...", resp)
 		w.Write([]byte(resp))
 	}
+}
+
+func parse_refer(url string) (protocol string, domain string) {
+	url = strings.TrimSpace(url)
+
+	if len(url) > 0 {
+		start0 := strings.Index(url, "://")
+		url0 := url[start0+3 : len(url)]
+		surls := strings.Split(url0, "/")
+
+		if len(surls) > 0 {
+			domain = surls[0]
+		}
+
+		protocol = url[0:start0]
+	}
+
+	return
 }
