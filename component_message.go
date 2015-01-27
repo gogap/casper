@@ -1,12 +1,10 @@
 package casper
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"reflect"
 
-	"github.com/gogap/casper/utils"
 	uuid "github.com/nu7hatch/gouuid"
 )
 
@@ -37,7 +35,7 @@ type Payload struct {
 	Message string            `json:"message"`
 	context componentContext  `json:"context"`
 	command componentCommands `json:"command"`
-	result  []byte            `json:"result,omitempty"`
+	result  interface{}       `json:"result"`
 }
 
 func NewComponentMessage(entrance *ComponentMetadata, result interface{}) (msg *ComponentMessage, err error) {
@@ -57,11 +55,11 @@ func NewComponentMessage(entrance *ComponentMetadata, result interface{}) (msg *
 		Payload: &Payload{
 			Code:    0,
 			Message: "OK",
-			context: make(map[string]interface{}),
-			command: make(map[string]interface{}),
-			result:  nil}}
+			context: nil,
+			command: nil,
+			result:  result}}
 
-	return msg, msg.Payload.setResult(result)
+	return msg, nil
 
 }
 
@@ -99,7 +97,7 @@ func (p *ComponentMessage) Serialize() ([]byte, error) {
 			Message string            `json:"message"`
 			Context componentContext  `json:"context"`
 			Command componentCommands `json:"command"`
-			Result  []byte            `json:"result"`
+			Result  interface{}       `json:"result"`
 		} `json:"payload"`
 	}
 
@@ -130,7 +128,7 @@ func (p *ComponentMessage) FromJson(jsonStr []byte) (err error) {
 			Message string            `json:"message"`
 			Context componentContext  `json:"context,omitempty"`
 			Command componentCommands `json:"command,omitempty"`
-			Result  []byte            `json:"result"`
+			Result  interface{}       `json:"result"`
 		} `json:"payload"`
 	}
 
@@ -152,40 +150,22 @@ func (p *ComponentMessage) FromJson(jsonStr []byte) (err error) {
 	return nil
 }
 
-func (p *Payload) UnmarshalResult(v interface{}) error {
+func (p *Payload) UnmarshalResult(v interface{}) (err error) {
 	if p.result == nil {
 		return nil
 	}
 
-	if p.result[0] == '"' {
-		p.result = p.result[1:(len(p.result) - 1)]
-	}
-
-	dst, err := base64.StdEncoding.DecodeString(string(p.result))
-	if err != nil {
-		return json.Unmarshal(p.result, v)
-	} else {
-		return json.Unmarshal(dst, v)
-	}
-}
-
-func (p *Payload) setResult(v interface{}) (err error) {
-	if v == nil {
-		p.result = nil
-		return nil
-	}
-
-	if !utils.IsStruct(v) && !utils.IsStructArray(v) {
-		err = fmt.Errorf("worker return must struct or []struct")
+	if bJson, e := json.Marshal(p.result); e != nil {
+		err = fmt.Errorf("marshal result to json failed, error is:%v", e)
+		return
+	} else if e := json.Unmarshal(bJson, v); e != nil {
+		err = fmt.Errorf("unmarshal result to object failed, error is:%v", e)
 		return
 	}
-
-	p.result, err = json.Marshal(v)
-
 	return
 }
 
-func (p *Payload) GetResult() []byte {
+func (p *Payload) GetResult() interface{} {
 	return p.result
 }
 

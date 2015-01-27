@@ -206,7 +206,7 @@ func (p *Component) SendMsg(comMsg *ComponentMessage) {
 		if p.handler != nil {
 			log.Infoln(p.Name, "Call handler")
 			ret, err = p.handler(comMsg.Payload)
-			// comMsg.Payload.result = nil
+			comMsg.Payload.result = nil
 			if err != nil {
 				// 业务处理错误, 发给入口
 				log.Warningln("worker error, send to entrance:", strMsg, err.Error())
@@ -220,16 +220,7 @@ func (p *Component) SendMsg(comMsg *ComponentMessage) {
 				next = comMsg.entrance
 				comMsg.graph = nil
 			} else {
-				if ret != nil {
-					err = comMsg.Payload.setResult(ret)
-					if err != nil {
-						log.Errorln("work result Marshal:", err.Error(), ret)
-						comMsg.Payload.Code = 500
-						comMsg.Payload.Message = fmt.Sprintf("%v. %v", p.Name, err.Error())
-						next = comMsg.entrance
-						comMsg.graph = nil
-					}
-				}
+				comMsg.Payload.result = ret
 				log.Infoln(p.Name, "Call handler ok")
 			}
 		}

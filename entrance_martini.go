@@ -1,6 +1,7 @@
 package casper
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -33,6 +34,12 @@ type EntranceMartini struct {
 	config    EntranceMartiniConf
 	martini   *martini.ClassicMartini
 	messenger Messenger
+}
+
+type httpRespStruct struct {
+	Code    uint64      `json:"code"`
+	Message string      `json:"message"`
+	Result  interface{} `json:"result"`
 }
 
 func init() {
@@ -125,6 +132,18 @@ func (p *EntranceMartini) martiniHandle() func(http.ResponseWriter, *http.Reques
 			w.Write([]byte("Read request body error"))
 			return
 		}
+
+		if string(reqBody) == "" {
+			reqBody = []byte("{}")
+		}
+
+		var mapResult map[string]interface{}
+
+		if e := json.Unmarshal(reqBody, &mapResult); e != nil {
+			log.Errorln("the request data is not a struct", e)
+			return
+		}
+
 		log.Infoln("httpRequest:", p.config.Path, string(reqBody))
 
 		// cookie
@@ -145,7 +164,7 @@ func (p *EntranceMartini) martiniHandle() func(http.ResponseWriter, *http.Reques
 
 		// Componet message
 		var comMsg *ComponentMessage
-		if msg, e := p.messenger.NewMessage(reqBody); e != nil {
+		if msg, e := p.messenger.NewMessage(mapResult); e != nil {
 			log.Errorln("NewMessage err", e)
 			return
 		} else {
@@ -201,16 +220,19 @@ func (p *EntranceMartini) martiniHandle() func(http.ResponseWriter, *http.Reques
 
 		p.setBasicHeaders(w, r)
 
-		rstStr := string(load.result)
-		if rstStr == "" {
-			rstStr = "NULL"
+		respObj := httpRespStruct{Code: load.Code,
+			Message: load.Message,
+			Result:  load.result}
+
+		if bJson, e := json.Marshal(respObj); e != nil {
+			log.Errorln("response object parse err:", e)
+			return
+		} else {
+			strResp := string(bJson)
+			w.Write(bJson)
+			log.Infoln("Data arrived. Responding to HTTP response...", strResp)
 		}
-		if load.Code != 0 {
-			rstStr = "NULL"
-		}
-		resp := fmt.Sprintf("{\n\"code\":%v,\n\"message\":\"%v\",\n\"result\":%v\n}", load.Code, load.Message, rstStr)
-		log.Infoln("Data arrived. Responding to HTTP response...", resp)
-		w.Write([]byte(resp))
+
 	}
 }
 
