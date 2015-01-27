@@ -14,6 +14,7 @@ const (
 )
 
 type Messenger interface {
+	NewMessage(result interface{}) (msg *ComponentMessage, err error)
 	ReceiveMessage(msg *ComponentMessage) (err error)
 	SendMessage(graphName string, comMsg *ComponentMessage) (msgId string, ch chan *Payload, err error)
 	SendToComponent(compMetadata *ComponentMetadata, msg []byte) (total int, err error)
@@ -37,6 +38,10 @@ func NewMQChanMessenger(graphs Graphs, compMetadata ComponentMetadata) *MQChanMe
 	messenger.compMetadata = &compMetadata
 
 	return messenger
+}
+
+func (p *MQChanMessenger) NewMessage(result interface{}) (msg *ComponentMessage, err error) {
+	return NewComponentMessage(p.compMetadata, result)
 }
 
 func (p *MQChanMessenger) ReceiveMessage(msg *ComponentMessage) (err error) {

@@ -144,7 +144,13 @@ func (p *EntranceMartini) martiniHandle() func(http.ResponseWriter, *http.Reques
 		}
 
 		// Componet message
-		comMsg, _ := NewComponentMessage(nil, reqBody)
+		var comMsg *ComponentMessage
+		if msg, e := p.messenger.NewMessage(reqBody); e != nil {
+			log.Errorln("NewMessage err", e)
+			return
+		} else {
+			comMsg = msg
+		}
 		comMsg.Payload.SetContext(REQ_X_API, apiName)
 		comMsg.Payload.SetContext(SESSION_KEY, sessionids) // 会话ID
 		comMsg.Payload.SetContext(USER_KEY, userids)
