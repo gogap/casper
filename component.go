@@ -206,7 +206,7 @@ func (p *Component) SendMsg(comMsg *ComponentMessage) {
 		if p.handler != nil {
 			log.Infoln(p.Name, "Call handler")
 			ret, err = p.handler(comMsg.Payload)
-			comMsg.Payload.result = nil
+			// comMsg.Payload.result = nil
 			if err != nil {
 				// 业务处理错误, 发给入口
 				log.Warningln("worker error, send to entrance:", strMsg, err.Error())
