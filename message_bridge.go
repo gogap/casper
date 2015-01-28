@@ -66,6 +66,7 @@ func (p *MQChanMessenger) SendMessage(graphName string, comMsg *ComponentMessage
 	}
 
 	comMsg.entrance = p.compMetadata
+	log.Infoln(comMsg.entrance)
 
 	// build graph
 	for i := 0; i < len(graph); i++ {
@@ -81,7 +82,7 @@ func (p *MQChanMessenger) SendMessage(graphName string, comMsg *ComponentMessage
 		compConf := com.Metadata()
 		comMsg.graph = append(comMsg.graph, &compConf)
 	}
-	log.Infoln("msg's graph:", comMsg.graph)
+	log.Infoln("msg's graph:", *comMsg.graph[0])
 
 	// get next com
 	nextComp := comMsg.graph[0]
@@ -98,7 +99,7 @@ func (p *MQChanMessenger) SendMessage(graphName string, comMsg *ComponentMessage
 	}
 
 	p.SendToComponent(nextComp, message)
-
+	
 	return comMsg.Id, ch, nil
 }
 
@@ -119,7 +120,7 @@ func (p *MQChanMessenger) SendToComponent(compMetadata *ComponentMetadata, msg [
 			MessageQueue: mqtmp}
 	}
 
-	//log.Infoln(p.Name, "SendToComponent:", in, string(msg))
+	log.Infoln("SendToComponent:", compMetadata.In, string(msg))
 	total, err = p.mqCache[compMetadata.In].SendToNext(msg)
 	return
 }

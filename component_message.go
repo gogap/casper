@@ -3,12 +3,11 @@ package casper
 import (
 	"encoding/json"
 	"fmt"
-	"reflect"
 
 	uuid "github.com/nu7hatch/gouuid"
 )
 
-type componentCommands map[string]interface{}
+type componentCommands map[string]map[string]string
 type componentContext map[string]interface{}
 
 type callChain struct {
@@ -326,33 +325,25 @@ func (p *Payload) GetContextObject(key string, v interface{}) (err error) {
 	return
 }
 
-func (p *Payload) SetCommand(key string, command interface{}) {
+func (p *Payload) SetCommand(key string, command map[string]string) {
 	if p.command == nil {
-		p.command = make(map[string]interface{})
+		p.command = make(map[string]map[string]string)
 	}
 	p.command[key] = command
 }
 
-func (p *Payload) AppendCommand(key string, command interface{}) {
+func (p *Payload) AppendCommand(key string, command map[string]string) {
 	if p.command == nil {
-		p.command = make(map[string]interface{})
+		p.command = make(map[string]map[string]string)
 	}
 
-	if tmp, ok := p.command[key]; ok {
-		if reflect.TypeOf(tmp) == reflect.TypeOf(command) {
-			switch reflect.TypeOf(command).Kind() {
-			case reflect.Map:
-				for k, v := range command.(map[string]interface{}) {
-					p.command[key].(map[string]interface{})[k] = v
-				}
-			case reflect.Slice:
-				for i := 0; i < len(command.([]interface{})); i++ {
-					p.command[key] = append(p.command[key].([]interface{}), command.([]interface{})[i])
-				}
-			}
-		}
-	} else {
+	if _, ok := p.command[key]; !ok {
 		p.command[key] = command
+		return
+	}
+
+	for k, v := range command {
+		p.command[key][k] = v
 	}
 }
 
