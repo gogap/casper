@@ -90,7 +90,7 @@ func (p *EntranceMartini) Run() error {
 
 	listenAddr := p.config.GetListenAddress()
 
-	logger.Info("[entrance-%s] start at: %s", p.Type(), listenAddr)
+	logs.Info("[entrance-%s] start at: %s", p.Type(), listenAddr)
 
 	p.martini.RunOnAddr(listenAddr)
 
