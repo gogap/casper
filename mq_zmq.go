@@ -1,9 +1,10 @@
 package casper
 
 import (
-	"fmt"
-
+	"github.com/gogap/errors"
 	zmq "github.com/pebbe/zmq4"
+
+	"github.com/gogap/casper/errorcode"
 )
 
 const componentPacket byte = 0x01
@@ -23,23 +24,32 @@ func NewMqZmq(url string) MessageQueue {
 
 func (p *mqZmq) Ready() (err error) {
 	if p.url == "" {
-		return fmt.Errorf("zmq's url nil")
+		err = errorcode.ERR_ZMQ_URL_IS_EMPTY.New()
+		return
 	}
 	p.socket, err = createZmqInputPort(p.url)
 	return
 }
 
-func (p *mqZmq) RecvMessage() ([]byte, error) {
-	ip, err := p.socket.RecvMessageBytes(0)
-	if err != nil {
+func (p *mqZmq) RecvMessage() (msg []byte, err error) {
+	var msgs [][]byte
+	if msgs, err = p.socket.RecvMessageBytes(0); err != nil {
+		err = errorcode.ERR_ZMQ_RECV_MSG_FAILED.New(
+			errors.Params{
+				"url": p.url,
+				"err": err})
+
 		return nil, err
 	}
 
-	if !isValidPacket(ip) {
-		return nil, fmt.Errorf("Recv invalid message")
+	if !isValidPacket(msgs) {
+		err = errorcode.ERR_ZMQ_RECV_MSG_FAILED.New(
+			errors.Params{"url": p.url})
+
+		return nil, err
 	}
 
-	return ip[1], nil
+	return msgs[1], nil
 }
 
 func (p *mqZmq) SendToNext(msg []byte) (total int, err error) {
@@ -57,9 +67,22 @@ func (p *mqZmq) SendToNext(msg []byte) (total int, err error) {
 // Create a ZMQ PULL socket & bind to a given endpoint
 func createZmqInputPort(url string) (socket *zmq.Socket, err error) {
 	if socket, err = zmq.NewSocket(zmq.PULL); err != nil {
+		err = errorcode.ERR_NEW_ZMQ_FAILED.New(
+			errors.Params{
+				"url":  url,
+				"type": "PULL",
+				"err":  err})
+
 		return nil, err
 	}
+
 	if err = socket.Bind(url); err != nil {
+		err = errorcode.ERR_ZMQ_COULD_NOT_BIND_URL.New(
+			errors.Params{
+				"url":  url,
+				"type": "PULL",
+				"err":  err})
+
 		return nil, err
 	}
 
@@ -69,12 +92,24 @@ func createZmqInputPort(url string) (socket *zmq.Socket, err error) {
 // Create a ZMQ PUSH socket & connect to a given endpoint
 func createZmqOutputPort(url string) (socket *zmq.Socket, err error) {
 	if socket, err = zmq.NewSocket(zmq.PUSH); err != nil {
-		return nil, err
-	}
-	if err = socket.Connect(url); err != nil {
+		err = errorcode.ERR_NEW_ZMQ_FAILED.New(
+			errors.Params{
+				"url":  url,
+				"type": "PUSH",
+				"err":  err})
+
 		return nil, err
 	}
 
+	if err = socket.Connect(url); err != nil {
+		err = errorcode.ERR_ZMQ_COULD_NOT_CONNECT_TO_URL.New(
+			errors.Params{
+				"url":  url,
+				"type": "PUSH",
+				"err":  err})
+
+		return nil, err
+	}
 	return socket, nil
 }
 
@@ -90,5 +125,4 @@ func isValidPacket(msg interface{}) bool {
 	}
 
 	return false
-
 }

@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/gogap/logs"
 	log "github.com/golang/glog"
 )
-
-var logger = logs.NewLogger(1)
 
 var apps map[string]*App = make(map[string]*App)
 
@@ -129,14 +126,6 @@ func SetEntranceFactory(factory EntranceFactory) {
 	}
 
 	entrancefactory = factory
-}
-
-func SetLogger(l *logs.BeeLogger) {
-	logger = l
-}
-
-func SetLogLevel(level int) {
-	logger.SetLevel(level)
 }
 
 func (p *App) Run() {

@@ -1,7 +1,9 @@
 package casper
 
 import (
-	"fmt"
+	"github.com/gogap/errors"
+
+	"github.com/gogap/casper/errorcode"
 )
 
 var mqs map[string]mqType = make(map[string]mqType)
@@ -25,21 +27,30 @@ func registerMq(name string, one mqType) {
 	mqs[name] = one
 }
 
-func NewMQ(compMeta *ComponentMetadata) (MessageQueue, error) {
+func NewMQ(compMeta *ComponentMetadata) (mq MessageQueue, err error) {
+
 	if compMeta == nil {
-		return nil, fmt.Errorf("MessageQueue's metadata is nil")
+		return nil, errorcode.ERR_COMPONENT_METADATA_IS_NIL.New()
 	}
 
 	if compMeta.MQType == "" {
-		return nil, fmt.Errorf("MessageQueue's type nil")
+		return nil, errorcode.ERR_COMPONENT_MQTYPE_IS_EMPTY.New(
+			errors.Params{"name": compMeta.Name})
 	}
+
 	if compMeta.In == "" {
-		return nil, fmt.Errorf("MessageQueue's in nil")
+		return nil, errorcode.ERR_COMPONENT_IN_IS_EMPTY.New(
+			errors.Params{"name": compMeta.Name})
 	}
 
 	if newFun, ok := mqs[compMeta.MQType]; ok {
 		return newFun(compMeta.In), nil
 	}
 
-	return nil, fmt.Errorf("no MessageQueue types " + compMeta.MQType)
+	err = errorcode.ERR_COULD_NOT_NEW_MSG_QUEUE.New(
+		errors.Params{
+			"name":   compMeta.Name,
+			"mqType": compMeta.MQType})
+
+	return nil, err
 }

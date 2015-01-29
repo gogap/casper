@@ -1,10 +1,11 @@
 package casper
 
 import (
-	"fmt"
 	"strings"
 
-	log "github.com/golang/glog"
+	"github.com/gogap/errors"
+
+	"github.com/gogap/casper/errorcode"
 )
 
 type MessageEvent int32
@@ -24,9 +25,8 @@ type Messenger interface {
 type MQChanMessenger struct {
 	graphs       Graphs
 	compMetadata *ComponentMetadata
-	//components []ComponentConfig
-	mqCache  map[string]*EndPoint
-	requests map[string]chan *Payload
+	mqCache      map[string]*EndPoint
+	requests     map[string]chan *Payload
 }
 
 func NewMQChanMessenger(graphs Graphs, compMetadata ComponentMetadata) *MQChanMessenger {
@@ -45,15 +45,16 @@ func (p *MQChanMessenger) NewMessage(result interface{}) (msg *ComponentMessage,
 }
 
 func (p *MQChanMessenger) ReceiveMessage(msg *ComponentMessage) (err error) {
-	id := msg.Id
-	ch := p.getRequest(id)
-	if ch == nil {
+	if ch, exist := p.requests[msg.Id]; !exist {
 		bmsg, _ := msg.Serialize()
-		return fmt.Errorf("No such request", id, string(bmsg))
+		err = errorcode.ERR_MESSENGER_REQ_ID_NOT_EXIST.New(
+			errors.Params{
+				"id":  msg.Id,
+				"msg": string(bmsg)})
+		return
+	} else {
+		ch <- msg.Payload
 	}
-
-	ch <- msg.Payload
-
 	return nil
 }
 
@@ -61,12 +62,11 @@ func (p *MQChanMessenger) SendMessage(graphName string, comMsg *ComponentMessage
 	// get graph
 	graph := p.GetGraph(graphName)
 	if graph == nil {
-		log.Errorln("No such graph named: ", graphName, p.graphs)
-		return "", nil, fmt.Errorf("No such graph named: %s", graphName)
+		err = errorcode.ERR_GRAPH_NOT_EXIST.New(errors.Params{"name": graphName})
+		return
 	}
 
 	comMsg.entrance = p.compMetadata
-	log.Infoln(comMsg.entrance)
 
 	// build graph
 	for i := 0; i < len(graph); i++ {
@@ -76,13 +76,12 @@ func (p *MQChanMessenger) SendMessage(graphName string, comMsg *ComponentMessage
 		}
 		com := GetComponentByName(graph[i])
 		if com == nil {
-			log.Errorln("No such component named: ", graph[i])
-			return "", nil, fmt.Errorf("No such component named: ", graph[i])
+			err = errorcode.ERR_COMPONENT_NOT_EXIST.New(errors.Params{"name": graphName})
+			return
 		}
 		compConf := com.Metadata()
 		comMsg.graph = append(comMsg.graph, &compConf)
 	}
-	log.Infoln("msg's graph:", *comMsg.graph[0])
 
 	// get next com
 	nextComp := comMsg.graph[0]
@@ -92,20 +91,26 @@ func (p *MQChanMessenger) SendMessage(graphName string, comMsg *ComponentMessage
 
 	// Send Component message
 	var message []byte
-	if msg, e := comMsg.Serialize(); e != nil {
-		log.Errorf("Serialize component message error, error is: %s", e)
-	} else {
-		message = msg
+	if message, err = comMsg.Serialize(); err != nil {
+		err = errorcode.ERR_COMPONENT_MSG_SERIALIZE_FAILED.New(
+			errors.Params{
+				"in":     comMsg.entrance.In,
+				"mqType": comMsg.entrance.MQType,
+				"err":    err})
+		return
 	}
 
-	p.SendToComponent(nextComp, message)
-	
+	if _, err = p.SendToComponent(nextComp, message); err != nil {
+		return
+	}
+
 	return comMsg.Id, ch, nil
 }
 
 func (p *MQChanMessenger) SendToComponent(compMetadata *ComponentMetadata, msg []byte) (total int, err error) {
 	if compMetadata == nil {
-		return 0, fmt.Errorf("component metadata is nil")
+		err = errorcode.ERR_COMPONENT_METADATA_IS_NIL.New()
+		return
 	}
 
 	if _, ok := p.mqCache[compMetadata.In]; ok == false {
@@ -120,7 +125,6 @@ func (p *MQChanMessenger) SendToComponent(compMetadata *ComponentMetadata, msg [
 			MessageQueue: mqtmp}
 	}
 
-	log.Infoln("SendToComponent:", compMetadata.In, string(msg))
 	total, err = p.mqCache[compMetadata.In].SendToNext(msg)
 	return
 }
@@ -145,13 +149,6 @@ func (p *MQChanMessenger) addRequest(msgId string) (ch chan *Payload) {
 	p.requests[strMsgId] = ch
 
 	return
-}
-
-func (p *MQChanMessenger) getRequest(msgId string) chan *Payload {
-	if ch, ok := p.requests[msgId]; ok {
-		return ch
-	}
-	return nil
 }
 
 func (p *MQChanMessenger) GetGraph(name string) []string {

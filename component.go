@@ -5,11 +5,12 @@ package casper
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 
 	"github.com/gogap/errors"
-	log "github.com/golang/glog"
+	"github.com/gogap/logs"
+
+	"github.com/gogap/casper/errorcode"
 )
 
 var components map[string]*Component = make(map[string]*Component)
@@ -68,17 +69,24 @@ func BuildComponent(fileName string) {
 	}
 
 	r, err := os.Open(fileName)
+	logs.Info("load components config file:", fileName)
+
 	if err != nil {
+		err = errorcode.ERR_OPENFILE_ERROR.New(errors.Params{"fileName": fileName, "err": err})
+		logs.Error(err)
 		panic(err)
 	}
 	defer r.Close()
 
 	if err = json.NewDecoder(r).Decode(&conf); err != nil {
+		err = errorcode.ERR_JSON_UNMARSHAL_ERROR.New(errors.Params{"err": err})
+		logs.Error(err)
 		panic(err)
 	}
 
 	for _, compConf := range conf.Components {
-		if _, err := NewComponent(compConf); err != nil {
+		if _, err = NewComponent(compConf); err != nil {
+			logs.Error(err)
 			panic(err)
 		}
 	}
@@ -87,31 +95,21 @@ func BuildComponent(fileName string) {
 
 func NewComponent(conf ComponentConfig) (component *Component, err error) {
 	messenger := NewMQChanMessenger(nil, conf.Metadata())
-	com := &Component{
-		Name:        conf.Name,
-		Description: conf.Description,
-		endPoint:    EndPoint{ComponentMetadata: ComponentMetadata{In: conf.In, MQType: conf.MQType}, MessageQueue: nil},
-		messenger:   messenger,
-		handler:     nil}
-
-	components[com.Name] = com
-
-	log.Infoln(com)
-	return com, nil
+	return NewComponentWithMessenger(conf, messenger)
 }
 
 func NewComponentWithMessenger(conf ComponentConfig, messenger Messenger) (component *Component, err error) {
-	com := &Component{
+	comp := &Component{
 		Name:        conf.Name,
 		Description: conf.Description,
 		endPoint:    EndPoint{ComponentMetadata: ComponentMetadata{In: conf.In, MQType: conf.MQType}, MessageQueue: nil},
 		messenger:   messenger,
 		handler:     nil}
 
-	components[com.Name] = com
+	components[comp.Name] = comp
 
-	log.Infoln(com)
-	return com, nil
+	logs.Pretty(comp, "new component:")
+	return comp, nil
 }
 
 func GetComponentByName(name string) *Component {
@@ -126,36 +124,35 @@ func SetHandlers(handlers ComponentHandlers) {
 		if component := GetComponentByName(name); component != nil {
 			component.SetHandler(handler)
 		} else {
-			panic(fmt.Errorf("component of %s not exist", name))
+			err := errorcode.ERR_COMPONENT_NOT_EXIST.New(errors.Params{"name": name})
+			logs.Error(err)
+			panic(err)
 		}
 	}
 }
 
 func (p *Component) SetHandler(handler ComponentHandler) *Component {
 	if handler == nil {
-		panic("handler could not be nil")
+		err := errorcode.ERR_COMPONENT_HANDLER_IS_NIL.New()
+		logs.Error(err)
+		panic(err)
 	}
 	p.handler = handler
-
 	return p
 }
 
 func (p *Component) Run() (err error) {
-	log.Infof("[Component-%s] Run at:%s\n", p.Name, p.endPoint.In)
+	logs.Info("component running:", p.Name, p.endPoint.In)
 
-	// 创建MQ
-	p.endPoint.MessageQueue, err = NewMQ(&p.endPoint.ComponentMetadata)
-	if err != nil {
+	if p.endPoint.MessageQueue, err = NewMQ(&p.endPoint.ComponentMetadata); err != nil {
 		return
 	}
 
-	// MQ 准备
 	err = p.endPoint.Ready()
 	if err != nil {
 		return
 	}
 
-	// 开始监听
 	go p.recvMonitor()
 
 	return nil
@@ -165,14 +162,21 @@ func (p *Component) recvMonitor() {
 	for {
 		msg, err := p.endPoint.RecvMessage()
 		if err != nil {
-			log.Errorln(p.Name, "Error receiving message:", err.Error())
+			logs.Error(err)
 			continue
 		}
-		log.Infoln(p.Name, "Recv:", string(msg))
+
+		strMsg := string(msg)
+		logs.Debug(p.Name, "Recv:", strMsg)
 
 		comMsg := new(ComponentMessage)
 		if err := comMsg.FromJson(msg); err != nil {
-			log.Errorln(p.Name, "Msg's format error:", err.Error(), string(msg))
+			err = errorcode.ERR_COULD_NOT_PARSE_COMPONENT_MSG.New(
+				errors.Params{"in": p.endPoint.In,
+					"mqType": p.endPoint.MQType,
+					"msg":    strMsg})
+
+			logs.Error(err)
 			continue
 		}
 
@@ -195,21 +199,23 @@ func (p *Component) SendMsg(comMsg *ComponentMessage) {
 		// 正常流程
 		next = comMsg.PopGraph()
 		if next == nil || next.Name == "" {
-			log.Warningln("next is nil. send to entrance:", strMsg)
+			logs.Warn("next is nil. send to entrance:", strMsg)
 			next = comMsg.entrance
 			comMsg.graph = nil
 		}
 
-		// call worker
+		// call handler
 		var ret interface{}
 		var err error
 		if p.handler != nil {
-			log.Infoln(p.Name, "Call handler")
+			logs.Debug(p.Name, "begin call handler")
 			ret, err = p.handler(comMsg.Payload)
 			comMsg.Payload.result = nil
 			if err != nil {
 				// 业务处理错误, 发给入口
-				log.Warningln("worker error, send to entrance:", strMsg, err.Error())
+				warnErr := errorcode.ERR_HANDLER_RETURN_ERROR.New(errors.Params{"name": p.Name})
+				logs.Error(warnErr)
+
 				if errors.IsErrCode(err) == false {
 					comMsg.Payload.Code = 500
 					comMsg.Payload.Message = err.Error()
@@ -221,40 +227,49 @@ func (p *Component) SendMsg(comMsg *ComponentMessage) {
 				comMsg.graph = nil
 			} else {
 				comMsg.Payload.result = ret
-				log.Infoln(p.Name, "Call handler ok")
+				logs.Debug(p.Name, "end call handler")
 			}
 		}
 
 		// 正常发到下一站
-		log.Infoln("sendToNext:", next, strMsg)
-		msg, _ := comMsg.Serialize()
-		if _, err = p.messenger.SendToComponent(next, msg); err != nil {
-			log.Errorf("SendToComponent %s error, %s", p.Name, err)
+		logs.Debug("begin send to next component:", next.In, next.MQType, strMsg)
+		if msg, e := comMsg.Serialize(); e != nil {
+			err = errorcode.ERR_COULD_NOT_PARSE_COMPONENT_MSG.New(
+				errors.Params{"in": p.endPoint.In,
+					"mqType": p.endPoint.MQType,
+					"msg":    strMsg,
+					"err":    e})
+			logs.Error(err)
+		} else if _, err = p.messenger.SendToComponent(next, msg); err != nil {
+			logs.Error(err)
 		}
 	} else if next == nil || next.In == "" {
 		// 消息流出错了或是已经走到了入口
 		msg, _ := comMsg.Serialize()
 		if p.messenger != nil {
 			// 到入口了, 抛给上层
-			log.Infoln(p.Name, "Msg to entrance:", strMsg)
+			logs.Debug(p.Name, "send msg to entrance:", comMsg.entrance.Name, comMsg.entrance.In, comMsg.entrance.MQType)
 			if err := p.messenger.ReceiveMessage(comMsg); err != nil {
-				log.Errorln(p.Name, "msg to entrance err:", err.Error())
+				logs.Error(err)
 			}
 		} else {
 			// 链路错了， 发给入口
-			log.Errorln("msg's next null, send to entrance", strMsg)
-			_, err := p.messenger.SendToComponent(comMsg.entrance, msg)
-			if err != nil {
-				log.Errorln(p.Name, "msg's next null, send to entrance ERR", strMsg)
+			logs.Debug("msg's next null, send to entrance", strMsg)
+			if _, err := p.messenger.SendToComponent(comMsg.entrance, msg); err != nil {
+				logs.Error(err)
 			}
 		}
 	} else if next.In != p.endPoint.In {
 		// 发给正确的站点
-		msg, _ := comMsg.Serialize()
-		log.Warningln(p.Name, "msg's real next is:", next)
-		_, err := p.messenger.SendToComponent(next, msg)
-		if err != nil {
-			log.Errorln(p.Name, "send to real next ERR: ", string(msg))
+		if msg, err := comMsg.Serialize(); err != nil {
+			err = errorcode.ERR_COMPONENT_MSG_SERIALIZE_FAILED.New(
+				errors.Params{
+					"in":     p.endPoint.In,
+					"mqType": p.endPoint.MQType,
+					"err":    err})
+			logs.Error(err)
+		} else if _, err = p.messenger.SendToComponent(next, msg); err != nil {
+			logs.Error(err)
 		}
 	}
 }

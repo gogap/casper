@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-martini/martini"
+	"github.com/gogap/logs"
 	uuid "github.com/nu7hatch/gouuid"
 
 	"github.com/gogap/casper/errorcode"
@@ -89,7 +90,7 @@ func (p *EntranceMartini) Run() error {
 
 	listenAddr := p.config.GetListenAddress()
 
-	logger.Info("[entrance-%s] start at: %s\n", p.Type(), listenAddr)
+	logs.Info("[entrance-%s] start at: %s\n", p.Type(), listenAddr)
 
 	p.martini.RunOnAddr(listenAddr)
 
@@ -132,12 +133,12 @@ func (p *EntranceMartini) optionsHandle() func(w http.ResponseWriter, r *http.Re
 
 func writeJson(respObj interface{}, w http.ResponseWriter) {
 	if bJson, e := json.Marshal(respObj); e != nil {
-		logger.Error(e)
+		logs.Error(e)
 		return
 	} else {
 		strResp := string(bJson)
 		w.Write(bJson)
-		logger.Pretty(strResp, "response:")
+		logs.Pretty(strResp, "response:")
 	}
 }
 
@@ -149,28 +150,28 @@ func (p *EntranceMartini) postHandler() func(http.ResponseWriter, *http.Request)
 
 		apiName := r.Header.Get(REQ_X_API)
 		if apiName == "" {
-			logger.Error(errorcode.ERR_API_NOT_FOUND.New(errors.Params{"apiName": apiName}))
+			logs.Error(errorcode.ERR_API_NOT_FOUND.New(errors.Params{"apiName": apiName}))
 			writeJson(respNotFound, w)
 			return
 		}
 
-		logger.Info("handle", apiName)
+		logs.Info("handle", apiName)
 
 		var reqBody []byte
 		if reqBody, err = ioutil.ReadAll(r.Body); err != nil {
-			logger.Error(errorcode.ERR_BAD_REQUEST.New(errors.Params{"path": p.config.Path, "err": err}))
+			logs.Error(errorcode.ERR_BAD_REQUEST.New(errors.Params{"path": p.config.Path, "err": err}))
 			writeJson(respBadRequest, w)
 			return
 		} else if strings.TrimSpace(string(reqBody)) == "" {
 			reqBody = []byte("{}")
 		}
 
-		logger.Debug("http request:", p.config.Path, string(reqBody))
+		logs.Debug("http request:", p.config.Path, string(reqBody))
 
 		var mapResult map[string]interface{}
 
 		if e := json.Unmarshal(reqBody, &mapResult); e != nil {
-			logger.Error(errorcode.ERR_REQUEST_SHOULD_BE_JSON.New())
+			logs.Error(errorcode.ERR_REQUEST_SHOULD_BE_JSON.New())
 			writeJson(respNotAJson, w)
 			return
 		}
@@ -188,7 +189,7 @@ func (p *EntranceMartini) postHandler() func(http.ResponseWriter, *http.Request)
 		}
 
 		if userid, e := r.Cookie(USER_KEY); e != nil {
-			logger.Debug("get cookie error:", USER_KEY, e)
+			logs.Debug("get cookie error:", USER_KEY, e)
 		} else if userid != nil {
 			strUserId = userid.Value
 		}
@@ -196,7 +197,7 @@ func (p *EntranceMartini) postHandler() func(http.ResponseWriter, *http.Request)
 		// Componet message
 		var comMsg *ComponentMessage
 		if comMsg, err = p.messenger.NewMessage(mapResult); err != nil {
-			logger.Error(errorcode.ERR_COULD_NOT_NEW_COMPONENT_MSG.New(errors.Params{"err": err}))
+			logs.Error(errorcode.ERR_COULD_NOT_NEW_COMPONENT_MSG.New(errors.Params{"err": err}))
 			writeJson(respInternalError, w)
 			return
 		}
@@ -211,7 +212,7 @@ func (p *EntranceMartini) postHandler() func(http.ResponseWriter, *http.Request)
 		var ch chan *Payload
 
 		if msgId, ch, err = p.messenger.SendMessage(apiName, comMsg); err != nil {
-			logger.Error(errorcode.ERR_SEND_COMPONENT_MSG_ERROR.New(errors.Params{"id": msgId, "err": err}))
+			logs.Error(errorcode.ERR_SEND_COMPONENT_MSG_ERROR.New(errors.Params{"id": msgId, "err": err}))
 			writeJson(respInternalError, w)
 			return
 		}
@@ -222,7 +223,7 @@ func (p *EntranceMartini) postHandler() func(http.ResponseWriter, *http.Request)
 		defer p.messenger.OnMessageEvent(msgId, MSG_EVENT_PROCESSED)
 
 		// Wait for response from IN port
-		logger.Debug("Waiting for response: ", apiName)
+		logs.Debug("Waiting for response: ", apiName)
 		var load *Payload
 		select {
 		case load = <-ch:
@@ -235,7 +236,7 @@ func (p *EntranceMartini) postHandler() func(http.ResponseWriter, *http.Request)
 		// SESSION
 		cmd := make(map[string]string)
 		load.GetCommandObject(CMD_SET_SESSION, &cmd)
-		logger.Debug("get session:", strSessionId, cmd)
+		logs.Debug("get session:", strSessionId, cmd)
 
 		for k, v := range cmd {
 			if k == USER_KEY {
