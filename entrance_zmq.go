@@ -29,13 +29,13 @@ func (p *EntranceZMQ) Type() string {
 
 func (p *EntranceZMQ) Init(messenger Messenger, configs EntranceConfig) (err error) {
 	if addr, ok := configs.GetConfigString("address"); !ok {
-		err = fmt.Errorf("[Entrance-%s] get config section of %s failed", p.Type(), "address")
+		err = fmt.Errorf("[entrance-%s] get config section of %s failed", p.Type(), "address")
 	} else {
 		p.address = addr
 	}
 
 	if messenger == nil {
-		err = fmt.Errorf("[Entrance-%s] Messenger is nil", p.Type())
+		err = fmt.Errorf("[entrance-%s] Messenger is nil", p.Type())
 		return
 	} else {
 		p.messenger = messenger

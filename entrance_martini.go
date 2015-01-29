@@ -10,8 +10,19 @@ import (
 	"time"
 
 	"github.com/go-martini/martini"
-	log "github.com/golang/glog"
 	uuid "github.com/nu7hatch/gouuid"
+
+	"github.com/gogap/casper/errorcode"
+	"github.com/gogap/errors"
+)
+
+var (
+	respInternalError  = httpRespStruct{Code: http.StatusInternalServerError, Message: "internal server error"}
+	respRequestTimeout = httpRespStruct{Code: http.StatusRequestTimeout, Message: "request timeout"}
+
+	respNotFound   = httpRespStruct{Code: http.StatusNotFound, Message: "api not found"}
+	respBadRequest = httpRespStruct{Code: http.StatusBadRequest, Message: "bad request"}
+	respNotAJson   = httpRespStruct{Code: http.StatusBadRequest, Message: "request data should be json struct"}
 )
 
 type EntranceMartiniConf struct {
@@ -73,11 +84,13 @@ func (p *EntranceMartini) Init(messenger Messenger, configs EntranceConfig) (err
 
 func (p *EntranceMartini) Run() error {
 	p.martini = martini.Classic()
-	p.martini.Post(p.config.Path, p.martiniHandle())
-	p.martini.Options(p.config.Path, p.martiniOptionsHandle)
+	p.martini.Post(p.config.Path, p.postHandler())
+	p.martini.Options(p.config.Path, p.optionsHandle())
 
 	listenAddr := p.config.GetListenAddress()
-	log.Infof("[Entrance-%s] start at: %s\n", p.Type(), listenAddr)
+
+	logger.Info("[entrance-%s] start at: %s\n", p.Type(), listenAddr)
+
 	p.martini.RunOnAddr(listenAddr)
 
 	return nil
@@ -111,128 +124,133 @@ func (p *EntranceMartini) setBasicHeaders(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func (p *EntranceMartini) martiniOptionsHandle(w http.ResponseWriter, r *http.Request) {
-	p.setBasicHeaders(w, r)
+func (p *EntranceMartini) optionsHandle() func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		p.setBasicHeaders(w, r)
+	}
 }
 
-func (p *EntranceMartini) martiniHandle() func(http.ResponseWriter, *http.Request) {
+func writeJson(respObj interface{}, w http.ResponseWriter) {
+	if bJson, e := json.Marshal(respObj); e != nil {
+		logger.Error(e)
+		return
+	} else {
+		strResp := string(bJson)
+		w.Write(bJson)
+		logger.Pretty(strResp, "response:")
+	}
+}
+
+func (p *EntranceMartini) postHandler() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		p.setBasicHeaders(w, r)
+
+		var err error
+
 		apiName := r.Header.Get(REQ_X_API)
 		if apiName == "" {
-			log.Errorln("request api name nil")
-			http.NotFound(w, r)
-			return
-		}
-		log.Infoln("handle:", apiName)
-
-		reqBody, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			log.Errorln("request body err:", p.config.Path, err.Error())
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Read request body error"))
+			logger.Error(errorcode.ERR_API_NOT_FOUND.New(errors.Params{"apiName": apiName}))
+			writeJson(respNotFound, w)
 			return
 		}
 
-		if string(reqBody) == "" {
+		logger.Info("handle", apiName)
+
+		var reqBody []byte
+		if reqBody, err = ioutil.ReadAll(r.Body); err != nil {
+			logger.Error(errorcode.ERR_BAD_REQUEST.New(errors.Params{"path": p.config.Path, "err": err}))
+			writeJson(respBadRequest, w)
+			return
+		} else if strings.TrimSpace(string(reqBody)) == "" {
 			reqBody = []byte("{}")
 		}
+
+		logger.Debug("http request:", p.config.Path, string(reqBody))
 
 		var mapResult map[string]interface{}
 
 		if e := json.Unmarshal(reqBody, &mapResult); e != nil {
-			log.Errorln("the request data is not a struct", e)
+			logger.Error(errorcode.ERR_REQUEST_SHOULD_BE_JSON.New())
+			writeJson(respNotAJson, w)
 			return
 		}
 
-		log.Infoln("httpRequest:", p.config.Path, string(reqBody))
-
 		// cookie
-		sessionids := ""
-		userids := ""
+		strSessionId := ""
+		strUserId := ""
+
 		sessionid, err := r.Cookie(SESSION_KEY)
 		if err != nil || sessionid == nil {
 			uuidTmp, _ := uuid.NewV4()
-			sessionids = uuidTmp.String()
+			strSessionId = uuidTmp.String()
 		} else {
-			sessionids = sessionid.Value
+			strSessionId = sessionid.Value
 		}
 
-		userid, err := r.Cookie(USER_KEY)
-		if userid != nil {
-			userids = userid.Value
+		if userid, e := r.Cookie(USER_KEY); e != nil {
+			logger.Debug("get cookie error:", USER_KEY, e)
+		} else if userid != nil {
+			strUserId = userid.Value
 		}
 
 		// Componet message
 		var comMsg *ComponentMessage
-		if msg, e := p.messenger.NewMessage(mapResult); e != nil {
-			log.Errorln("NewMessage err", e)
+		if comMsg, err = p.messenger.NewMessage(mapResult); err != nil {
+			logger.Error(errorcode.ERR_COULD_NOT_NEW_COMPONENT_MSG.New(errors.Params{"err": err}))
+			writeJson(respInternalError, w)
 			return
-		} else {
-			comMsg = msg
 		}
+
 		comMsg.Payload.SetContext(REQ_X_API, apiName)
-		comMsg.Payload.SetContext(SESSION_KEY, sessionids) // 会话ID
-		comMsg.Payload.SetContext(USER_KEY, userids)
+		comMsg.Payload.SetContext(SESSION_KEY, strSessionId) // 会话ID
+		comMsg.Payload.SetContext(USER_KEY, strUserId)
 
 		// send msg to next
-		id, ch, err := p.messenger.SendMessage(apiName, comMsg)
-		if err != nil {
-			log.Errorln("sendMsg err:", comMsg.Id, err.Error())
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(err.Error()))
+
+		msgId := ""
+		var ch chan *Payload
+
+		if msgId, ch, err = p.messenger.SendMessage(apiName, comMsg); err != nil {
+			logger.Error(errorcode.ERR_SEND_COMPONENT_MSG_ERROR.New(errors.Params{"id": msgId, "err": err}))
+			writeJson(respInternalError, w)
 			return
 		}
-		if ch == nil {
-			log.Errorln("sendMsg return nil:", comMsg.Id)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Service Internal Error"))
-			return
-		}
+
+		fmt.Println(msgId, ch)
+
 		defer close(ch)
-		defer p.messenger.OnMessageEvent(id, MSG_EVENT_PROCESSED)
+		defer p.messenger.OnMessageEvent(msgId, MSG_EVENT_PROCESSED)
 
 		// Wait for response from IN port
-		log.Infoln("Waiting for response: ", apiName, string(reqBody))
+		logger.Debug("Waiting for response: ", apiName)
 		var load *Payload
 		select {
 		case load = <-ch:
 			break
 		case <-time.Tick(REQ_TIMEOUT):
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Couldn't process request in a given time"))
+			writeJson(respRequestTimeout, w)
 			return
 		}
 
 		// SESSION
 		cmd := make(map[string]string)
 		load.GetCommandObject(CMD_SET_SESSION, &cmd)
-		log.Infoln("get session:", sessionids, cmd)
+		logger.Debug("get session:", strSessionId, cmd)
+
 		for k, v := range cmd {
 			if k == USER_KEY {
-				log.Infoln("add cookie:", k, v)
 				http.SetCookie(w, &http.Cookie{Name: k, Value: v, Domain: p.config.Domain, Path: "/"})
 			}
-			log.Infoln("set session:", sessionids, k, v)
-			SessionSetByte(sessionids, k, []byte(v))
+			SessionSetByte(strSessionId, k, []byte(v))
 		}
 
-		http.SetCookie(w, &http.Cookie{Name: SESSION_KEY, Value: sessionids, Domain: p.config.Domain, Path: "/"})
-
-		p.setBasicHeaders(w, r)
+		http.SetCookie(w, &http.Cookie{Name: SESSION_KEY, Value: strSessionId, Domain: p.config.Domain, Path: "/"})
 
 		respObj := httpRespStruct{Code: load.Code,
 			Message: load.Message,
 			Result:  load.result}
 
-		if bJson, e := json.Marshal(respObj); e != nil {
-			log.Errorln("response object parse err:", e)
-			return
-		} else {
-			strResp := string(bJson)
-			w.Write(bJson)
-			log.Infoln("Data arrived. Responding to HTTP response...", strResp)
-		}
-
+		writeJson(respObj, w)
 	}
 }
 
