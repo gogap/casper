@@ -89,7 +89,7 @@ func (p *EntranceMartini) Run() error {
 
 	listenAddr := p.config.GetListenAddress()
 
-	logger.Info("[entrance-%s] start at: %s\n", p.Type(), listenAddr)
+	logger.Info("[entrance-%s] start at: %s", p.Type(), listenAddr)
 
 	p.martini.RunOnAddr(listenAddr)
 
@@ -241,7 +241,7 @@ func (p *EntranceMartini) postHandler() func(http.ResponseWriter, *http.Request)
 			if k == USER_KEY {
 				http.SetCookie(w, &http.Cookie{Name: k, Value: v, Domain: p.config.Domain, Path: "/"})
 			}
-			SessionSetByte(strSessionId, k, []byte(v))
+			SessionSetByte(strSessionId, k, []byte(v), (3 * 24 * 60 * 60))
 		}
 
 		http.SetCookie(w, &http.Cookie{Name: SESSION_KEY, Value: strSessionId, Domain: p.config.Domain, Path: "/"})

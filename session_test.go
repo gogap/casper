@@ -6,7 +6,7 @@ import (
 )
 
 func TestSessionSetByte(t *testing.T) {
-	SessionSetByte("demo", "key", []byte("val"))
+	SessionSetByte("demo", "key", []byte("val"), 100)
 }
 
 func TestSessionGetByte(t *testing.T) {
