@@ -18,6 +18,11 @@ type HttpResponse struct {
 	Result  interface{} `json:"result,omitempty"`
 }
 
+type NameValue struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
 type Graphs map[string][]string
 
 type App struct {

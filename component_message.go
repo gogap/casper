@@ -7,7 +7,7 @@ import (
 	uuid "github.com/nu7hatch/gouuid"
 )
 
-type componentCommands map[string]map[string]string
+type componentCommands map[string][]interface{}
 type componentContext map[string]interface{}
 
 type callChain struct {
@@ -325,29 +325,28 @@ func (p *Payload) GetContextObject(key string, v interface{}) (err error) {
 	return
 }
 
-func (p *Payload) SetCommand(key string, command map[string]string) {
+func (p *Payload) SetCommand(command string, values []interface{}) {
 	if p.command == nil {
-		p.command = make(map[string]map[string]string)
+		p.command = make(map[string][]interface{})
 	}
-	p.command[key] = command
+	p.command[command] = values
 }
 
-func (p *Payload) AppendCommand(key string, command map[string]string) {
+func (p *Payload) AppendCommand(command string, value interface{}) {
 	if p.command == nil {
-		p.command = make(map[string]map[string]string)
+		p.command = make(map[string][]interface{})
 	}
 
-	if _, ok := p.command[key]; !ok {
-		p.command[key] = command
-		return
+	if values, ok := p.command[command]; !ok {
+		p.command[command] = []interface{}{value}
+	} else {
+		values = append(values, value)
+		p.command[command] = values
 	}
-
-	for k, v := range command {
-		p.command[key][k] = v
-	}
+	return
 }
 
-func (p *Payload) GetCommand(key string) (val interface{}, exist bool) {
+func (p *Payload) GetCommand(key string) (val []interface{}, exist bool) {
 	if p.command == nil {
 		return nil, false
 	}
@@ -355,148 +354,70 @@ func (p *Payload) GetCommand(key string) (val interface{}, exist bool) {
 	return
 }
 
-func (p *Payload) GetCommandString(key string) (val string, err error) {
+func (p *Payload) GetCommandValueSize(key string) int {
 	if p.command == nil {
-		return "", fmt.Errorf("the command container is nil")
+		return 0
+	} else {
+		if vals, exist := p.command[key]; exist {
+			if vals != nil {
+				return len(vals)
+			}
+			return 0
+		}
 	}
-
-	var v interface{}
-	exist := false
-	if v, exist = p.command[key]; !exist {
-		err = fmt.Errorf("the command key of %s is not exist", key)
-		return
-	}
-
-	if strVal, ok := v.(string); ok {
-		val = strVal
-		return
-	}
-
-	return
+	return 0
 }
 
-func (p *Payload) GetCommandStringArray(key string) (vals []string, err error) {
-	if p.command == nil {
-		return nil, fmt.Errorf("the command container is nil")
-	}
+func (p *Payload) GetCommandStringArray(command string) (vals []string, err error) {
+	if size := p.GetCommandValueSize(command); size > 0 {
+		values, _ := p.GetCommand(command)
 
-	var v interface{}
-	exist := false
-	if v, exist = p.command[key]; !exist {
-		err = fmt.Errorf("the command key of %s is not exist", key)
-		return
-	}
-
-	if vInterfaces, ok := v.([]interface{}); ok {
-		tmpArray := []string{}
-		for i, vStr := range vInterfaces {
-			if str, ok := vStr.(string); ok {
-				tmpArray = append(tmpArray, str)
+		tmpVals := []string{}
+		for _, iStr := range values {
+			if strV, ok := iStr.(string); ok {
+				tmpVals = append(tmpVals, strV)
 			} else {
-				err = fmt.Errorf("the command key of %s's value type at index of %d is not string", key, i)
+				err = fmt.Errorf("the value of %v are not string type", iStr)
 				return
 			}
 		}
-		vals = tmpArray
-		return
-	} else {
-		err = fmt.Errorf("the type of command key %s is not array", key)
+		vals = tmpVals
 		return
 	}
+	err = fmt.Errorf("command values is nil or command not exist")
 	return
 }
 
-func (p *Payload) GetCommandInt(key string) (val int, err error) {
-	if p.command == nil {
-		return 0, fmt.Errorf("the command container is nil")
-	}
+func (p *Payload) GetCommandObjectArray(command string, values []interface{}) (err error) {
 
-	var v interface{}
-	exist := false
-	if v, exist = p.command[key]; !exist {
-		err = fmt.Errorf("the command key of %s is not exist", key)
+	if values == nil {
+		err = fmt.Errorf("the values should not be nil, it should be a interface{}")
 		return
 	}
 
-	if intVal, ok := v.(int); ok {
-		val = intVal
-		return
-	} else {
-		err = fmt.Errorf("the type of command key %s is not int", key)
-	}
-	return
-}
-
-func (p *Payload) GetCommandInt32(key string) (val int32, err error) {
-	if p.command == nil {
-		return 0, fmt.Errorf("the command container is nil")
-	}
-
-	var v interface{}
-	exist := false
-	if v, exist = p.command[key]; !exist {
-		err = fmt.Errorf("the command key of %s is not exist", key)
+	if len(values) == 0 {
 		return
 	}
 
-	if intVal, ok := v.(int32); ok {
-		val = intVal
-		return
-	} else {
-		err = fmt.Errorf("the type of command key %s is not int32", key)
-	}
-	return
-}
-
-func (p *Payload) GetCommandInt64(key string) (val int64, err error) {
-	if p.command == nil {
-		return 0, fmt.Errorf("the command container is nil")
-	}
-
-	var v interface{}
-	exist := false
-	if v, exist = p.command[key]; !exist {
-		err = fmt.Errorf("the command key of %s is not exist", key)
+	if p.GetCommandValueSize(command) < len(values) {
+		err = fmt.Errorf("the command of %s is exist, but the recv values length is greater than command values", command)
 		return
 	}
 
-	if intVal, ok := v.(int64); ok {
-		val = intVal
-		return
-	} else {
-		err = fmt.Errorf("the type of command key %s is not int64", key)
-	}
-	return
-}
+	vals, _ := p.GetCommand(command)
 
-func (p *Payload) GetCommandObject(key string, v interface{}) (err error) {
-	if v == nil {
-		err = fmt.Errorf("the v should not be nil, it should be a Pointer")
-		return
-	}
-
-	if p.command == nil {
-		return fmt.Errorf("the command container is nil")
-	}
-
-	if val, exist := p.command[key]; !exist {
-		err = fmt.Errorf("the command key of %s is not exist", key)
-		return
-	} else if val == nil {
-		err = fmt.Errorf("the command key of %s is exist, but the value is nil", key)
-		return
-	} else {
+	for i, objVal := range values {
 		var bJson []byte
 		var e error
-		if bJson, e = json.Marshal(val); e != nil {
-			err = fmt.Errorf("marshal object of %s to json failed, error is:%v", key, e)
+		if bJson, e = json.Marshal(vals[i]); e != nil {
+			err = fmt.Errorf("marshal object of %s to json failed, error is:%v", command, e)
 			return
 		}
-
-		if e := json.Unmarshal(bJson, v); e != nil {
-			err = fmt.Errorf("unmarshal json to object %s failed, error is:%v", key, e)
+		if e = json.Unmarshal(bJson, objVal); e != nil {
+			err = fmt.Errorf("unmarshal json to object %s failed, error is:%v", command, e)
 			return
 		}
 	}
+
 	return
 }

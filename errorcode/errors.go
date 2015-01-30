@@ -35,5 +35,6 @@ var (
 	ERR_HANDLER_RETURN_ERROR           = errors.T(1020, "handler return error, component name: {{.name}}")
 	ERR_COMPONENT_MSG_SERIALIZE_FAILED = errors.T(1021, "component serialize failed, IN: {{.in}}, MQType: {{.mqType}}, raw error: {{.err}}")
 
-	ERR_GRAPH_NOT_EXIST = errors.T(1022, "graph {{.name}} not exist")
+	ERR_GRAPH_NOT_EXIST                = errors.T(1022, "graph {{.name}} not exist")
+	ERR_PARSE_COMMAND_TO_OBJECT_FAILED = errors.T(1023, "parse command {{.cmd}} error, raw error is: {{.err}}")
 )

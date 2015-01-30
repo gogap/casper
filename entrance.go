@@ -11,9 +11,6 @@ const (
 
 	SESSION_KEY = "sessionID"
 	USER_KEY    = "userKey"
-
-	CMD_HTTP_HEADER_WRITE = "CMD_HTTP_HEADER_WRITE"
-	CMD_SET_SESSION       = "CMD_SET_SESSION"
 )
 
 type Entrance interface {
