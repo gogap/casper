@@ -8,9 +8,6 @@ import (
 const (
 	REQ_TIMEOUT = time.Duration(15) * time.Second
 	REQ_X_API   = "X-API"
-
-	SESSION_KEY = "sessionID"
-	USER_KEY    = "userKey"
 )
 
 type Entrance interface {

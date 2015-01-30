@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	log "github.com/golang/glog"
+	"github.com/gogap/logs"
 )
 
 var apps map[string]*App = make(map[string]*App)
@@ -28,9 +28,6 @@ type Graphs map[string][]string
 type App struct {
 	Component
 	Entrance
-
-	// graphs   Graphs
-	// requests map[string]chan *Payload
 
 	messenger Messenger
 }
@@ -106,7 +103,7 @@ func NewApp(appConf AppConfig) (app *App, err error) {
 	app = newApp
 
 	apps[app.Name] = app
-	log.Infoln("NewApp:", app)
+	logs.Pretty(app, "new app:")
 
 	return
 }

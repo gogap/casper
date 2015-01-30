@@ -6,6 +6,8 @@ import (
 
 	log "github.com/golang/glog"
 	zmq "github.com/pebbe/zmq4"
+
+	"github.com/gogap/logs"
 )
 
 type EntranceZMQ struct {
@@ -18,10 +20,6 @@ type EntranceZMQ struct {
 func init() {
 	entrancefactory.RegisterEntrance(new(EntranceZMQ))
 }
-
-// func NewZmqEntrance() entrance {
-// 	return &EntranceZMQ{}
-// }
 
 func (p *EntranceZMQ) Type() string {
 	return "zmq"
@@ -36,6 +34,7 @@ func (p *EntranceZMQ) Init(messenger Messenger, configs EntranceConfig) (err err
 
 	if messenger == nil {
 		err = fmt.Errorf("[entrance-%s] Messenger is nil", p.Type())
+		logs.Info(err)
 		return
 	} else {
 		p.messenger = messenger
@@ -55,7 +54,7 @@ func (p *EntranceZMQ) Run() error {
 		return err
 	}
 
-	log.Infof("[Entrance-%s] start at: %s", p.Type(), p.address)
+	logs.Info("entrance", p.Type(), "start:", p.address)
 	p.EntranceZMQHandler()
 
 	return nil

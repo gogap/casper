@@ -37,4 +37,6 @@ var (
 
 	ERR_GRAPH_NOT_EXIST                = errors.T(1022, "graph {{.name}} not exist")
 	ERR_PARSE_COMMAND_TO_OBJECT_FAILED = errors.T(1023, "parse command {{.cmd}} error, raw error is: {{.err}}")
+	ERR_CONFIG_TO_OBJECT_FAILED        = errors.T(1024, "config to object failed, raw error is: {{.err}}")
+	ERR_MESSENGER_IS_NIL               = errors.T(1025, "messenger is nil, type: {{.type}}")
 )

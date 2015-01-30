@@ -82,7 +82,7 @@ func (p *EntranceMartini) Type() string {
 
 func (p *EntranceMartini) Init(messenger Messenger, configs EntranceConfig) (err error) {
 	if e := configs.FillToObject(&p.config); e != nil {
-		err = fmt.Errorf("[Entrance-%s] fill config failed", p.Type())
+		err = errorcode.ERR_CONFIG_TO_OBJECT_FAILED.New(errors.Params{"err": e})
 		return
 	}
 
@@ -107,7 +107,7 @@ func (p *EntranceMartini) Init(messenger Messenger, configs EntranceConfig) (err
 	}
 
 	if messenger == nil {
-		err = fmt.Errorf("[Entrance-%s] Messenger is nil", p.Type())
+		err = errorcode.ERR_MESSENGER_IS_NIL.New(errors.Params{"type": p.Type()})
 		return
 	} else {
 		p.messenger = messenger
@@ -122,7 +122,7 @@ func (p *EntranceMartini) Run() error {
 
 	listenAddr := p.config.GetListenAddress()
 
-	logs.Info("[entrance-%s] start at: %s", p.Type(), listenAddr)
+	logs.Info("entrance", p.Type(), "start:", listenAddr)
 
 	p.martini.RunOnAddr(listenAddr)
 
@@ -152,7 +152,7 @@ func (p *EntranceMartini) setBasicHeaders(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Access-Control-Allow-Headers", p.config.allowHeaders)
 	w.Header().Set("Content-Type", "application/json")
 
-	if respId, e := uuid.NewV5(uuid.NamespaceDNS, []byte(p.config.Domain)); e != nil {
+	if respId, e := uuid.NewV4(); e == nil {
 		w.Header().Set("X-Response-Id", respId.String())
 	}
 
