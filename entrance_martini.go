@@ -29,8 +29,12 @@ const (
 	CTX_HTTP_COOKIES = "CTX_HTTP_COOKIES"
 	CTX_HTTP_HEADERS = "CTX_HTTP_HEADERS"
 
-	CMD_HTTP_HEADERS_WRITE = "CMD_HTTP_HEADERS_WRITE"
-	CMD_HTTP_COOKIES_WRITE = "CMD_HTTP_COOKIES_WRITE"
+	CMD_HTTP_HEADERS_SET = "CMD_HTTP_HEADERS_SET"
+	CMD_HTTP_COOKIES_SET = "CMD_HTTP_COOKIES_SET"
+)
+
+const (
+	DefaultAPIHeader = "X-API"
 )
 
 type EntranceToContextConf struct {
@@ -49,6 +53,7 @@ type EntranceMartiniConf struct {
 	P3P          string                `json:"p3p"`
 	Server       string                `json:"server"`
 	ToContext    EntranceToContextConf `json:"to_context"`
+	apiHeader    string                `json:"api_header"`
 
 	allowHeaders    string            `json:"-"`
 	allowOrigin     map[string]bool   `json:"-"`
@@ -103,6 +108,10 @@ func (p *EntranceMartini) Init(messenger Messenger, configs EntranceConfig) (err
 		p.config.responseHeaders["Server"] = p.config.Server
 	} else {
 		p.config.responseHeaders["Server"] = "casper"
+	}
+
+	if p.config.apiHeader == "" {
+		p.config.apiHeader = DefaultAPIHeader
 	}
 
 	if messenger == nil {
@@ -179,7 +188,7 @@ func (p *EntranceMartini) postHandler() func(http.ResponseWriter, *http.Request)
 
 		var err error
 
-		apiName := r.Header.Get(REQ_X_API)
+		apiName := r.Header.Get(p.config.apiHeader)
 		if apiName == "" {
 			logs.Error(errorcode.ERR_API_NOT_FOUND.New(errors.Params{"apiName": apiName}))
 			writeJson(respNotFound, w)
@@ -233,9 +242,10 @@ func (p *EntranceMartini) postHandler() func(http.ResponseWriter, *http.Request)
 
 		comMsg.Payload.SetContext(CTX_HTTP_COOKIES, cookies)
 		comMsg.Payload.SetContext(CTX_HTTP_HEADERS, headers)
+		comMsg.Payload.SetContext(p.config.apiHeader, apiName)
 
-		logs.Pretty(cookies, "request_cookies:")
-		logs.Pretty(headers, "request_headers:")
+		logs.Pretty("request_cookies:", cookies)
+		logs.Pretty("request_headers:", headers)
 
 		// send msg to next
 		msgId := ""
@@ -266,15 +276,15 @@ func (p *EntranceMartini) postHandler() func(http.ResponseWriter, *http.Request)
 		}
 
 		// Cookies
-		cmdCookiesSize := payload.GetCommandValueSize(CMD_HTTP_COOKIES_WRITE)
+		cmdCookiesSize := payload.GetCommandValueSize(CMD_HTTP_COOKIES_SET)
 		cmdCookies := make([]interface{}, cmdCookiesSize)
 		for i := 0; i < cmdCookiesSize; i++ {
 			cookie := new(http.Cookie)
 			cmdCookies[i] = cookie
 		}
 
-		if err = payload.GetCommandObjectArray(CMD_HTTP_COOKIES_WRITE, cmdCookies); err != nil {
-			err = errorcode.ERR_PARSE_COMMAND_TO_OBJECT_FAILED.New(errors.Params{"cmd": CMD_HTTP_COOKIES_WRITE, "err": err})
+		if err = payload.GetCommandObjectArray(CMD_HTTP_COOKIES_SET, cmdCookies); err != nil {
+			err = errorcode.ERR_PARSE_COMMAND_TO_OBJECT_FAILED.New(errors.Params{"cmd": CMD_HTTP_COOKIES_SET, "err": err})
 			logs.Error(err)
 			writeJson(respInternalError, w)
 			return
@@ -284,25 +294,25 @@ func (p *EntranceMartini) postHandler() func(http.ResponseWriter, *http.Request)
 			if c, ok := cookie.(*http.Cookie); ok {
 				c.Domain = p.config.Domain
 				c.Path = "/"
-				logs.Pretty(c, "write cookie:")
+				logs.Pretty("write cookie:", c)
 				http.SetCookie(w, c)
 			} else {
-				err = errorcode.ERR_PARSE_COMMAND_TO_OBJECT_FAILED.New(errors.Params{"cmd": CMD_HTTP_COOKIES_WRITE, "err": "object could not parser to cookies"})
+				err = errorcode.ERR_PARSE_COMMAND_TO_OBJECT_FAILED.New(errors.Params{"cmd": CMD_HTTP_COOKIES_SET, "err": "object could not parser to cookies"})
 				logs.Error(err)
 				writeJson(respInternalError, w)
 				return
 			}
 		}
 
-		cmdHeadersSize := payload.GetCommandValueSize(CMD_HTTP_HEADERS_WRITE)
+		cmdHeadersSize := payload.GetCommandValueSize(CMD_HTTP_HEADERS_SET)
 		cmdHeaders := make([]interface{}, cmdHeadersSize)
 		for i := 0; i < cmdHeadersSize; i++ {
 			header := new(NameValue)
 			cmdHeaders[i] = header
 		}
 
-		if err = payload.GetCommandObjectArray(CMD_HTTP_HEADERS_WRITE, cmdHeaders); err != nil {
-			err = errorcode.ERR_PARSE_COMMAND_TO_OBJECT_FAILED.New(errors.Params{"cmd": CMD_HTTP_HEADERS_WRITE, "err": err})
+		if err = payload.GetCommandObjectArray(CMD_HTTP_HEADERS_SET, cmdHeaders); err != nil {
+			err = errorcode.ERR_PARSE_COMMAND_TO_OBJECT_FAILED.New(errors.Params{"cmd": CMD_HTTP_HEADERS_SET, "err": err})
 			logs.Error(err)
 			writeJson(respInternalError, w)
 			return
@@ -311,9 +321,9 @@ func (p *EntranceMartini) postHandler() func(http.ResponseWriter, *http.Request)
 		for _, header := range cmdHeaders {
 			if nv, ok := header.(*NameValue); ok {
 				w.Header().Add(nv.Name, nv.Value)
-				logs.Pretty(nv, "write header:")
+				logs.Pretty("write header:", nv)
 			} else {
-				err = errorcode.ERR_PARSE_COMMAND_TO_OBJECT_FAILED.New(errors.Params{"cmd": CMD_HTTP_HEADERS_WRITE, "err": "object could not parser to headers"})
+				err = errorcode.ERR_PARSE_COMMAND_TO_OBJECT_FAILED.New(errors.Params{"cmd": CMD_HTTP_HEADERS_SET, "err": "object could not parser to headers"})
 				logs.Error(err)
 				writeJson(respInternalError, w)
 				return

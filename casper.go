@@ -103,7 +103,7 @@ func NewApp(appConf AppConfig) (app *App, err error) {
 	app = newApp
 
 	apps[app.Name] = app
-	logs.Pretty(app, "new app:")
+	logs.Pretty("new app:", app)
 
 	return
 }

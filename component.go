@@ -108,7 +108,7 @@ func NewComponentWithMessenger(conf ComponentConfig, messenger Messenger) (compo
 
 	components[comp.Name] = comp
 
-	logs.Pretty(comp, "new component:")
+	logs.Pretty("new component:", comp)
 	return comp, nil
 }
 

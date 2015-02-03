@@ -31,8 +31,8 @@ func handler(msg *casper.Payload) (result interface{}, err error) {
 
 	cookies := []interface{}{cookie}
 	headers := []interface{}{header}
-	msg.SetCommand(casper.CMD_HTTP_COOKIES_WRITE, cookies)
-	msg.SetCommand(casper.CMD_HTTP_HEADERS_WRITE, headers)
+	msg.SetCommand(casper.CMD_HTTP_COOKIES_SET, cookies)
+	msg.SetCommand(casper.CMD_HTTP_HEADERS_SET, headers)
 
 	rst := &struct {
 		Name string
