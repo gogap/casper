@@ -168,6 +168,10 @@ func (p *Payload) GetResult() interface{} {
 	return p.result
 }
 
+func (p *Payload) SetResult(result interface{}) {
+	p.result = result
+}
+
 func (p *Payload) SetContext(key string, val interface{}) {
 	if p.context == nil {
 		p.context = make(map[string]interface{})
@@ -406,14 +410,15 @@ func (p *Payload) GetCommandObjectArray(command string, values []interface{}) (e
 
 	vals, _ := p.GetCommand(command)
 
-	for i, objVal := range values {
+	for i, objVal := range vals {
 		var bJson []byte
 		var e error
-		if bJson, e = json.Marshal(vals[i]); e != nil {
+		if bJson, e = json.Marshal(objVal); e != nil {
 			err = fmt.Errorf("marshal object of %s to json failed, error is:%v", command, e)
 			return
 		}
-		if e = json.Unmarshal(bJson, objVal); e != nil {
+
+		if e = json.Unmarshal(bJson, &values[i]); e != nil {
 			err = fmt.Errorf("unmarshal json to object %s failed, error is:%v", command, e)
 			return
 		}
