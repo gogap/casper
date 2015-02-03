@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-martini/martini"
 	"github.com/gogap/logs"
-	uuid "github.com/nu7hatch/gouuid"
 
 	"github.com/gogap/casper/errorcode"
 	"github.com/gogap/errors"
@@ -152,10 +151,6 @@ func (p *EntranceMartini) setBasicHeaders(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Access-Control-Allow-Headers", p.config.allowHeaders)
 	w.Header().Set("Content-Type", "application/json")
 
-	if respId, e := uuid.NewV4(); e == nil {
-		w.Header().Set("X-Response-Id", respId.String())
-	}
-
 	for key, value := range p.config.responseHeaders {
 		w.Header().Set(key, value)
 	}
@@ -250,6 +245,10 @@ func (p *EntranceMartini) postHandler() func(http.ResponseWriter, *http.Request)
 			logs.Error(errorcode.ERR_SEND_COMPONENT_MSG_ERROR.New(errors.Params{"id": msgId, "err": err}))
 			writeJson(respInternalError, w)
 			return
+		}
+
+		if msgId != "" {
+			w.Header().Set("X-Response-Id", msgId)
 		}
 
 		defer close(ch)
