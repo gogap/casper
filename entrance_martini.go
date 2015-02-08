@@ -100,7 +100,7 @@ func (p *EntranceMartini) Init(messenger Messenger, configs EntranceConfig) (err
 		p.config.responseHeaders = make(map[string]string)
 	}
 
-	if p.config.P3P == "" {
+	if p.config.P3P != "" {
 		p.config.responseHeaders["P3P"] = p.config.P3P
 	}
 
