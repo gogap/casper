@@ -142,6 +142,7 @@ func (p *Component) SetHandler(handler ComponentHandler) *Component {
 }
 
 func (p *Component) Run() (err error) {
+	SingleInstane("/tmp/" + p.Name + ".pid")
 	logs.Info("component running:", p.Name, p.endPoint.In)
 
 	if p.endPoint.MessageQueue, err = NewMQ(&p.endPoint.ComponentMetadata); err != nil {
