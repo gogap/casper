@@ -25,8 +25,12 @@ func lockPidFile(pidfile string) error {
 		return e
 	}
 
-	pid := syscall.Getpid()
-	_, e = syscall.Write(fd, []byte(fmt.Sprintf("%d", pid)))
+	e := syscall.Ftruncate(fd, 0)
+	if e != nil {
+		return e
+	}
+	
+	_, e = syscall.Write(fd, []byte(fmt.Sprintf("%d", syscall.Getpid())))
 	if e != nil {
 		return e
 	}
