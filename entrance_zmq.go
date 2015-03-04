@@ -99,35 +99,38 @@ func (p *EntranceZMQ) EntranceZMQHandler() {
 			continue
 		}
 
-		// send msg to next
-		id, ch, err := p.messenger.SendMessage(apiName, comMsg)
-		if err != nil {
-			log.Errorln("sendMsg err:", comMsg.Id, err.Error())
-			p.socket.SendMessage(newPacket([]byte("ERR")))
-			continue
-		}
-		if ch == nil {
-			log.Errorln("sendMsg return nil:", comMsg.Id)
-			p.socket.SendMessage(newPacket([]byte("ERR")))
-			continue
-		}
-		defer close(ch)
-		defer p.messenger.OnMessageEvent(id, MSG_EVENT_PROCESSED)
+		go func(api string, msg *ComponentMessage) {
+			// send msg to next
+			id, ch, err := p.messenger.SendMessage(api, msg)
+			if err != nil {
+				log.Errorln("sendMsg err:", msg.Id, err.Error())
+				p.socket.SendMessage(newPacket([]byte("ERR")))
+				return
+			}
+			if ch == nil {
+				log.Errorln("sendMsg return nil:", msg.Id)
+				p.socket.SendMessage(newPacket([]byte("ERR")))
+				return
+			}
 
-		// Wait for response from IN port
-		log.Infoln("Waiting for response: ", apiName, string(msg[1]))
-		var load *Payload
-		select {
-		case load = <-ch:
-			break
-		case <-time.Tick(REQ_TIMEOUT):
-			p.socket.SendMessage(newPacket([]byte("TIMEOUT")))
-			return
-		}
+			defer close(ch)
+			defer p.messenger.OnMessageEvent(id, MSG_EVENT_PROCESSED)
 
-		comMsg.Payload = load
-		rst, _ := comMsg.Serialize()
-		p.socket.SendMessage(newPacket(rst))
+			// Wait for response from IN port
+			log.Infoln("Waiting for response: ", api)
+			var load *Payload
+			select {
+			case load = <-ch:
+				break
+			case <-time.Tick(REQ_TIMEOUT):
+				p.socket.SendMessage(newPacket([]byte("TIMEOUT")))
+				return
+			}
+
+			comMsg.Payload = load
+			rst, _ := comMsg.Serialize()
+			p.socket.SendMessage(newPacket(rst))
+		}(apiName, comMsg)
 	}
 }
 
