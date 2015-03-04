@@ -25,7 +25,7 @@ func lockPidFile(pidfile string) error {
 		return e
 	}
 
-	e := syscall.Ftruncate(fd, 0)
+	e = syscall.Ftruncate(fd, 0)
 	if e != nil {
 		return e
 	}
