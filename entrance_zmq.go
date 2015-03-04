@@ -99,17 +99,17 @@ func (p *EntranceZMQ) EntranceZMQHandler() {
 			continue
 		}
 
-		go func(api string, coMsg1 *ComponentMessage) {
+		go func(socket *zmq.Socket, api string, coMsg1 *ComponentMessage) {
 			// send msg to next
 			id, ch, err := p.messenger.SendMessage(api, coMsg1)
 			if err != nil {
 				log.Errorln("sendMsg err:", coMsg1.Id, err.Error())
-				p.socket.SendMessage(newPacket([]byte("ERR")))
+				socket.SendMessage(newPacket([]byte("ERR")))
 				return
 			}
 			if ch == nil {
 				log.Errorln("sendMsg return nil:", coMsg1.Id)
-				p.socket.SendMessage(newPacket([]byte("ERR")))
+				socket.SendMessage(newPacket([]byte("ERR")))
 				return
 			}
 
@@ -123,14 +123,14 @@ func (p *EntranceZMQ) EntranceZMQHandler() {
 			case load = <-ch:
 				break
 			case <-time.Tick(REQ_TIMEOUT):
-				p.socket.SendMessage(newPacket([]byte("TIMEOUT")))
+				socket.SendMessage(newPacket([]byte("TIMEOUT")))
 				return
 			}
 
 			comMsg.Payload = load
 			rst, _ := comMsg.Serialize()
-			p.socket.SendMessage(newPacket(rst))
-		}(apiName, comMsg)
+			socket.SendMessage(newPacket(rst))
+		}(p.socket, apiName, comMsg)
 	}
 }
 
