@@ -99,16 +99,16 @@ func (p *EntranceZMQ) EntranceZMQHandler() {
 			continue
 		}
 
-		go func(api string, msg *ComponentMessage) {
+		go func(api string, coMsg1 *ComponentMessage) {
 			// send msg to next
-			id, ch, err := p.messenger.SendMessage(api, msg)
+			id, ch, err := p.messenger.SendMessage(api, coMsg1)
 			if err != nil {
-				log.Errorln("sendMsg err:", msg.Id, err.Error())
+				log.Errorln("sendMsg err:", coMsg1.Id, err.Error())
 				p.socket.SendMessage(newPacket([]byte("ERR")))
 				return
 			}
 			if ch == nil {
-				log.Errorln("sendMsg return nil:", msg.Id)
+				log.Errorln("sendMsg return nil:", coMsg1.Id)
 				p.socket.SendMessage(newPacket([]byte("ERR")))
 				return
 			}
