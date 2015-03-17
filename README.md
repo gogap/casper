@@ -1,6 +1,10 @@
 casper
 ======
 
+**Obsoleted project, please move the new porject: github.com/gogap/spirit**
+
+**该项目已废弃，请移步到  github.com/gogap/spirit**
+
 A FBP framwoker 
 
 	一个组件，可以实现一个业务功能, 也可以实现多个。
